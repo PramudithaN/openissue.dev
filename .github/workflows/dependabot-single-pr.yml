@@ -1,0 +1,44 @@
+name: Limit Dependabot pull requests
+
+on:
+  pull_request_target:
+    types: [opened, reopened]
+
+concurrency:
+  group: dependabot-single-pr
+  cancel-in-progress: false
+
+jobs:
+  close-extra-pr:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Close the new PR when an older Dependabot PR is open
+        env:
+          CURRENT_PR: ${{ github.event.pull_request.number }}
+          CURRENT_CREATED_AT: ${{ github.event.pull_request.created_at }}
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pr_author="$(gh api "repos/${GH_REPO}/pulls/${CURRENT_PR}" --jq '.user.login')"
+
+          if [[ "${pr_author}" != "dependabot[bot]" ]]; then
+            exit 0
+          fi
+
+          existing_pr="$(
+            gh pr list \
+              --state open \
+              --author app/dependabot \
+              --limit 100 \
+              --json number,createdAt \
+              --jq ".[] | select(.number != ${CURRENT_PR} and .createdAt < \"${CURRENT_CREATED_AT}\") | .number" \
+              | head -n 1
+          )"
+
+          if [[ -n "${existing_pr}" ]]; then
+            gh pr close "${CURRENT_PR}" --comment \
+              "Closing this PR because Dependabot PR #${existing_pr} is already open. Dependabot will recreate updates after that PR is resolved."
+          fi
