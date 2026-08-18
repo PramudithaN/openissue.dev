@@ -77,16 +77,23 @@ function saveSavedSearches(searches: SavedSearch[]): void {
   }
 }
 
+let fallbackIdCounter = 0;
+
+function createSavedSearchId(): string {
+  if (globalThis.crypto?.randomUUID) {
+    return globalThis.crypto.randomUUID();
+  }
+
+  fallbackIdCounter += 1;
+  return `${Date.now()}-${fallbackIdCounter}`;
+}
+
 export function addSavedSearch(
   search: Omit<SavedSearch, "id" | "createdAt">,
 ): SavedSearch {
-  const id =
-    globalThis.crypto?.randomUUID?.() ??
-    `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  
-    const savedSearch: SavedSearch = {
+  const savedSearch: SavedSearch = {
     ...search,
-    id: crypto.randomUUID(),
+    id: createSavedSearchId(),
     createdAt: new Date().toISOString(),
   };
 
