@@ -1,10 +1,16 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
-import { GitPullRequest, Search } from "lucide-react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { Bookmark, GitPullRequest, Search, Trash2 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  addSavedSearch,
+  deleteSavedSearch,
+  getSavedSearches,
+  type SavedSearch,
+} from "@/features/issues/lib/saved-searches";
 import {
   Card,
   CardContent,
@@ -48,6 +54,13 @@ export function IssueFinder() {
   const [error, setError] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(false);
 
+  const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([]);
+  const [savedSearchName, setSavedSearchName] = useState("");
+
+  useEffect(() => {
+    setSavedSearches(getSavedSearches());
+  }, []);
+
   const selectedLabel = useMemo(
     () => LABEL_OPTIONS.find((item) => item.value === label) ?? LABEL_OPTIONS[0],
     [label],
@@ -73,13 +86,77 @@ export function IssueFinder() {
     return issues.length < data.candidateCount && data.issues.length === 24;
   }, [data, issues]);
 
-  async function searchIssues(event?: FormEvent<HTMLFormElement>) {
-    event?.preventDefault();
+  function handleSaveSearch() {
+  const name = savedSearchName.trim();
 
-    if (!tech.trim()) {
-      setError("Enter a technology to search.");
-      return;
-    }
+  if (!name) {
+    setError("Enter a name for the saved search.");
+    return;
+  }
+
+  if (!tech.trim()) {
+    setError("Enter a technology before saving the search.");
+    return;
+  }
+
+  const savedSearch = addSavedSearch({
+    name,
+    tech: tech.trim(),
+    label,
+    sort,
+    linkedPr,
+    hacktoberfest,
+  });
+
+  setSavedSearches((current) => [...current, savedSearch]);
+  setSavedSearchName("");
+  setError(null);
+}
+
+  function handleDeleteSavedSearch(id: string) {
+    deleteSavedSearch(id);
+    setSavedSearches(getSavedSearches());
+  }
+
+  function handleRunSavedSearch(savedSearch: SavedSearch) {
+  setTech(savedSearch.tech);
+  setLabel(savedSearch.label);
+  setSort(savedSearch.sort);
+  setLinkedPr(savedSearch.linkedPr);
+  setHacktoberfest(savedSearch.hacktoberfest);
+
+  void searchIssues(undefined, {
+    tech: savedSearch.tech,
+    label: savedSearch.label,
+    sort: savedSearch.sort,
+    linkedPr: savedSearch.linkedPr,
+    hacktoberfest: savedSearch.hacktoberfest,
+  });
+}
+
+  async function searchIssues(
+  event?: FormEvent<HTMLFormElement>,
+  searchOverride?: {
+    tech: string;
+    label: string;
+    sort: string;
+    linkedPr: string;
+    hacktoberfest: string;
+  },
+) {
+  event?.preventDefault();
+
+  const searchTech = searchOverride?.tech ?? tech;
+  const searchLabel = searchOverride?.label ?? label;
+  const searchSort = searchOverride?.sort ?? sort;
+  const searchLinkedPr = searchOverride?.linkedPr ?? linkedPr;
+  const searchHacktoberfest =
+    searchOverride?.hacktoberfest ?? hacktoberfest;
+
+  if (!searchTech.trim()) {
+    setError("Enter a technology to search.");
+    return;
+  }
 
     setIsLoading(true);
     setCooldown(true);
@@ -88,11 +165,11 @@ export function IssueFinder() {
     setPage(1);
 
     const params = new URLSearchParams({
-      tech: tech.trim(),
-      label,
-      sort,
-      linkedPr,
-      hacktoberfest,
+      tech: searchTech.trim(),
+      label: searchLabel,
+      sort: searchSort,
+      linkedPr: searchLinkedPr,
+      hacktoberfest: searchHacktoberfest,
     });
 
     try {
@@ -329,6 +406,81 @@ export function IssueFinder() {
               })}
             </CardContent>
           </Card>
+          <Card>
+  <CardHeader>
+    <CardTitle className="text-base">Saved searches</CardTitle>
+    <CardDescription>
+      Save your current filters and reuse them later.
+    </CardDescription>
+  </CardHeader>
+
+  <CardContent className="space-y-3">
+    <div className="space-y-2">
+      <Input
+        value={savedSearchName}
+        onChange={(event) => setSavedSearchName(event.target.value)}
+        placeholder="Search name"
+        aria-label="Saved search name"
+      />
+
+      <Button
+        type="button"
+        className="w-full gap-2"
+        onClick={handleSaveSearch}
+      >
+        <Bookmark className="h-4 w-4" />
+        Save current search
+      </Button>
+    </div>
+
+    {savedSearches.length === 0 ? (
+      <p className="text-sm text-muted-foreground">
+        No saved searches yet.
+      </p>
+    ) : (
+      <div className="space-y-2">
+        {savedSearches.map((savedSearch) => (
+          <div
+            key={savedSearch.id}
+            className="rounded-md border p-3"
+          >
+            <div className="mb-2 min-w-0">
+              <p className="truncate text-sm font-medium">
+                {savedSearch.name}
+              </p>
+
+              <p className="truncate text-xs text-muted-foreground">
+                {savedSearch.tech} · {savedSearch.label}
+              </p>
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="flex-1"
+                onClick={() => handleRunSavedSearch(savedSearch)}
+              >
+                Run
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                aria-label={`Delete ${savedSearch.name}`}
+                onClick={() => handleDeleteSavedSearch(savedSearch.id)}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
+  </CardContent>
+</Card>
         </aside>
 
         <div className="space-y-4">
