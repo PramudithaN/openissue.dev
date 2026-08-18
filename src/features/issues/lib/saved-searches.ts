@@ -80,7 +80,11 @@ function saveSavedSearches(searches: SavedSearch[]): void {
 export function addSavedSearch(
   search: Omit<SavedSearch, "id" | "createdAt">,
 ): SavedSearch {
-  const savedSearch: SavedSearch = {
+  const id =
+    globalThis.crypto?.randomUUID?.() ??
+    `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  
+    const savedSearch: SavedSearch = {
     ...search,
     id: crypto.randomUUID(),
     createdAt: new Date().toISOString(),
