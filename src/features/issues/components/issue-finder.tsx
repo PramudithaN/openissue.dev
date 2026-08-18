@@ -62,12 +62,14 @@ export function IssueFinder() {
   }, []);
 
   const selectedLabel = useMemo(
-    () => LABEL_OPTIONS.find((item) => item.value === label) ?? LABEL_OPTIONS[0],
+    () =>
+      LABEL_OPTIONS.find((item) => item.value === label) ?? LABEL_OPTIONS[0],
     [label],
   );
   const selectedLinkedPr = useMemo(
     () =>
-      LINKED_PR_OPTIONS.find((item) => item.value === linkedPr) ?? LINKED_PR_OPTIONS[0],
+      LINKED_PR_OPTIONS.find((item) => item.value === linkedPr) ??
+      LINKED_PR_OPTIONS[0],
     [linkedPr],
   );
   const selectedSort = useMemo(
@@ -87,31 +89,31 @@ export function IssueFinder() {
   }, [data, issues]);
 
   function handleSaveSearch() {
-  const name = savedSearchName.trim();
+    const name = savedSearchName.trim();
 
-  if (!name) {
-    setError("Enter a name for the saved search.");
-    return;
+    if (!name) {
+      setError("Enter a name for the saved search.");
+      return;
+    }
+
+    if (!tech.trim()) {
+      setError("Enter a technology before saving the search.");
+      return;
+    }
+
+    const savedSearch = addSavedSearch({
+      name,
+      tech: tech.trim(),
+      label,
+      sort,
+      linkedPr,
+      hacktoberfest,
+    });
+
+    setSavedSearches((current) => [...current, savedSearch]);
+    setSavedSearchName("");
+    setError(null);
   }
-
-  if (!tech.trim()) {
-    setError("Enter a technology before saving the search.");
-    return;
-  }
-
-  const savedSearch = addSavedSearch({
-    name,
-    tech: tech.trim(),
-    label,
-    sort,
-    linkedPr,
-    hacktoberfest,
-  });
-
-  setSavedSearches((current) => [...current, savedSearch]);
-  setSavedSearchName("");
-  setError(null);
-}
 
   function handleDeleteSavedSearch(id: string) {
     deleteSavedSearch(id);
@@ -119,44 +121,43 @@ export function IssueFinder() {
   }
 
   function handleRunSavedSearch(savedSearch: SavedSearch) {
-  setTech(savedSearch.tech);
-  setLabel(savedSearch.label);
-  setSort(savedSearch.sort);
-  setLinkedPr(savedSearch.linkedPr);
-  setHacktoberfest(savedSearch.hacktoberfest);
+    setTech(savedSearch.tech);
+    setLabel(savedSearch.label);
+    setSort(savedSearch.sort);
+    setLinkedPr(savedSearch.linkedPr);
+    setHacktoberfest(savedSearch.hacktoberfest);
 
-  void searchIssues(undefined, {
-    tech: savedSearch.tech,
-    label: savedSearch.label,
-    sort: savedSearch.sort,
-    linkedPr: savedSearch.linkedPr,
-    hacktoberfest: savedSearch.hacktoberfest,
-  });
-}
+    void searchIssues(undefined, {
+      tech: savedSearch.tech,
+      label: savedSearch.label,
+      sort: savedSearch.sort,
+      linkedPr: savedSearch.linkedPr,
+      hacktoberfest: savedSearch.hacktoberfest,
+    });
+  }
 
   async function searchIssues(
-  event?: FormEvent<HTMLFormElement>,
-  searchOverride?: {
-    tech: string;
-    label: string;
-    sort: string;
-    linkedPr: string;
-    hacktoberfest: string;
-  },
-) {
-  event?.preventDefault();
+    event?: FormEvent<HTMLFormElement>,
+    searchOverride?: {
+      tech: string;
+      label: string;
+      sort: string;
+      linkedPr: string;
+      hacktoberfest: string;
+    },
+  ) {
+    event?.preventDefault();
 
-  const searchTech = searchOverride?.tech ?? tech;
-  const searchLabel = searchOverride?.label ?? label;
-  const searchSort = searchOverride?.sort ?? sort;
-  const searchLinkedPr = searchOverride?.linkedPr ?? linkedPr;
-  const searchHacktoberfest =
-    searchOverride?.hacktoberfest ?? hacktoberfest;
+    const searchTech = searchOverride?.tech ?? tech;
+    const searchLabel = searchOverride?.label ?? label;
+    const searchSort = searchOverride?.sort ?? sort;
+    const searchLinkedPr = searchOverride?.linkedPr ?? linkedPr;
+    const searchHacktoberfest = searchOverride?.hacktoberfest ?? hacktoberfest;
 
-  if (!searchTech.trim()) {
-    setError("Enter a technology to search.");
-    return;
-  }
+    if (!searchTech.trim()) {
+      setError("Enter a technology to search.");
+      return;
+    }
 
     setIsLoading(true);
     setCooldown(true);
@@ -255,8 +256,9 @@ export function IssueFinder() {
                   Find active open-source issues by tech.
                 </h1>
                 <p className="max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
-                  Search contributor-friendly GitHub issues with labels like help wanted,
-                  good first issue, up-for-grabs, and documentation.
+                  Search contributor-friendly GitHub issues with labels like
+                  help wanted, good first issue, up-for-grabs, and
+                  documentation.
                 </p>
               </div>
             </div>
@@ -277,7 +279,11 @@ export function IssueFinder() {
               </div>
 
               <Select value={label} onValueChange={setLabel}>
-                <SelectTrigger className="h-11 w-full" size="lg" aria-label="Issue label">
+                <SelectTrigger
+                  className="h-11 w-full"
+                  size="lg"
+                  aria-label="Issue label"
+                >
                   <SelectValue>{selectedLabel.label}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
@@ -290,7 +296,11 @@ export function IssueFinder() {
               </Select>
 
               <Select value={sort} onValueChange={setSort}>
-                <SelectTrigger className="h-11 w-full" size="lg" aria-label="Sort results">
+                <SelectTrigger
+                  className="h-11 w-full"
+                  size="lg"
+                  aria-label="Sort results"
+                >
                   <SelectValue>{selectedSort.label}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
@@ -303,7 +313,11 @@ export function IssueFinder() {
               </Select>
 
               <Select value={linkedPr} onValueChange={setLinkedPr}>
-                <SelectTrigger className="h-11 w-full" size="lg" aria-label="Linked PR filter">
+                <SelectTrigger
+                  className="h-11 w-full"
+                  size="lg"
+                  aria-label="Linked PR filter"
+                >
                   <SelectValue>{selectedLinkedPr.label}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
@@ -316,7 +330,11 @@ export function IssueFinder() {
               </Select>
 
               <Select value={hacktoberfest} onValueChange={setHacktoberfest}>
-                <SelectTrigger className="h-11 w-full" size="lg" aria-label="Hacktoberfest filter">
+                <SelectTrigger
+                  className="h-11 w-full"
+                  size="lg"
+                  aria-label="Hacktoberfest filter"
+                >
                   <SelectValue>{selectedHacktoberfest.label}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
@@ -343,17 +361,32 @@ export function IssueFinder() {
             <CardHeader>
               <CardTitle className="text-base">Quality score</CardTitle>
               <CardDescription>
-                Results are boosted for recency, stars, clear labels, low comment count,
-                and unassigned issues.
+                Results are boosted for recency, stars, clear labels, low
+                comment count, and unassigned issues.
               </CardDescription>
             </CardHeader>
             <CardContent className="grid grid-cols-2 gap-3 text-sm">
               <Metric label="Label" value={selectedLabel.label} />
-              <Metric label="Sort" value={sort === "created" ? "newest" : sort} />
-              <Metric label="Linked PR" value={selectedLinkedPr.label.replace("Linked PR: ", "")} />
-              <Metric label="Hacktoberfest" value={selectedHacktoberfest.label} />
-              <Metric label="Ranked" value={data ? compactNumber(data.candidateCount) : "-"} />
-              <Metric label="Raw GitHub matches" value={data ? compactNumber(data.totalCount) : "-"} />
+              <Metric
+                label="Sort"
+                value={sort === "created" ? "newest" : sort}
+              />
+              <Metric
+                label="Linked PR"
+                value={selectedLinkedPr.label.replace("Linked PR: ", "")}
+              />
+              <Metric
+                label="Hacktoberfest"
+                value={selectedHacktoberfest.label}
+              />
+              <Metric
+                label="Ranked"
+                value={data ? compactNumber(data.candidateCount) : "-"}
+              />
+              <Metric
+                label="Raw GitHub matches"
+                value={data ? compactNumber(data.totalCount) : "-"}
+              />
               <Metric
                 label="GitHub token"
                 value={data?.tokenConfigured ? "configured" : "not set"}
@@ -400,94 +433,97 @@ export function IssueFinder() {
                     className="flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left text-sm transition-colors hover:bg-accent"
                   >
                     <Icon className="h-4 w-4 text-muted-foreground" />
-                    <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                    <span className="min-w-0 flex-1 truncate">
+                      {option.label}
+                    </span>
                   </button>
                 );
               })}
             </CardContent>
           </Card>
           <Card>
-  <CardHeader>
-    <CardTitle className="text-base">Saved searches</CardTitle>
-    <CardDescription>
-      Save your current filters and reuse them later.
-    </CardDescription>
-  </CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">Saved searches</CardTitle>
+              <CardDescription>
+                Save your current filters and reuse them later.
+              </CardDescription>
+            </CardHeader>
 
-  <CardContent className="space-y-3">
-    <div className="space-y-2">
-      <Input
-        value={savedSearchName}
-        onChange={(event) => setSavedSearchName(event.target.value)}
-        placeholder="Search name"
-        aria-label="Saved search name"
-      />
+            <CardContent className="space-y-3">
+              <div className="space-y-2">
+                <Input
+                  value={savedSearchName}
+                  onChange={(event) => setSavedSearchName(event.target.value)}
+                  placeholder="Search name"
+                  aria-label="Saved search name"
+                />
 
-      <Button
-        type="button"
-        className="w-full gap-2"
-        onClick={handleSaveSearch}
-      >
-        <Bookmark className="h-4 w-4" />
-        Save current search
-      </Button>
-    </div>
+                <Button
+                  type="button"
+                  className="w-full gap-2"
+                  onClick={handleSaveSearch}
+                >
+                  <Bookmark className="h-4 w-4" />
+                  Save current search
+                </Button>
+              </div>
 
-    {savedSearches.length === 0 ? (
-      <p className="text-sm text-muted-foreground">
-        No saved searches yet.
-      </p>
-    ) : (
-      <div className="space-y-2">
-        {savedSearches.map((savedSearch) => (
-          <div
-            key={savedSearch.id}
-            className="rounded-md border p-3"
-          >
-            <div className="mb-2 min-w-0">
-              <p className="truncate text-sm font-medium">
-                {savedSearch.name}
-              </p>
+              {savedSearches.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No saved searches yet.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {savedSearches.map((savedSearch) => (
+                    <div key={savedSearch.id} className="rounded-md border p-3">
+                      <div className="mb-2 min-w-0">
+                        <p className="truncate text-sm font-medium">
+                          {savedSearch.name}
+                        </p>
 
-              <p className="truncate text-xs text-muted-foreground">
-                {savedSearch.tech} · {savedSearch.label}
-              </p>
-            </div>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {savedSearch.tech} · {savedSearch.label}
+                        </p>
+                      </div>
 
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="flex-1"
-                onClick={() => handleRunSavedSearch(savedSearch)}
-              >
-                Run
-              </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => handleRunSavedSearch(savedSearch)}
+                        >
+                          Run
+                        </Button>
 
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                aria-label={`Delete ${savedSearch.name}`}
-                onClick={() => handleDeleteSavedSearch(savedSearch.id)}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        ))}
-      </div>
-    )}
-  </CardContent>
-</Card>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          aria-label={`Delete ${savedSearch.name}`}
+                          onClick={() =>
+                            handleDeleteSavedSearch(savedSearch.id)
+                          }
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </aside>
 
         <div className="space-y-4">
           {error ? (
             <Card className="border-destructive/40">
               <CardHeader>
-                <CardTitle className="text-base text-destructive">Search failed</CardTitle>
+                <CardTitle className="text-base text-destructive">
+                  Search failed
+                </CardTitle>
                 <CardDescription>{error}</CardDescription>
               </CardHeader>
             </Card>
@@ -526,13 +562,15 @@ export function IssueFinder() {
               <CardHeader>
                 <CardTitle className="text-base">No matching issues</CardTitle>
                 <CardDescription>
-                  Try a broader technology, another label, or recently updated sorting.
+                  Try a broader technology, another label, or recently updated
+                  sorting.
                 </CardDescription>
               </CardHeader>
             </Card>
           ) : null}
 
-          {!isLoading && issues.map((issue) => <IssueCard key={issue.id} issue={issue} />)}
+          {!isLoading &&
+            issues.map((issue) => <IssueCard key={issue.id} issue={issue} />)}
 
           {!isLoading && hasMore && (
             <div className="flex justify-center pt-4">
