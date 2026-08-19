@@ -100,19 +100,26 @@ export function IssueFinder() {
       setError("Enter a technology before saving the search.");
       return;
     }
+    try {
+      const savedSearch = addSavedSearch({
+        name,
+        tech: tech.trim(),
+        label,
+        sort,
+        linkedPr,
+        hacktoberfest,
+      });
 
-    const savedSearch = addSavedSearch({
-      name,
-      tech: tech.trim(),
-      label,
-      sort,
-      linkedPr,
-      hacktoberfest,
-    });
-
-    setSavedSearches((current) => [...current, savedSearch]);
-    setSavedSearchName("");
-    setError(null);
+      setSavedSearches((current) => [...current, savedSearch]);
+      setSavedSearchName("");
+      setError(null);
+    }catch (saveError) {
+      setError(
+        saveError instanceof Error
+        ? saveError.message
+        : "Unable to save search.",
+      );
+    }
   }
 
   function handleDeleteSavedSearch(id: string) {

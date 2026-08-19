@@ -65,14 +65,16 @@ export function getSavedSearches(): SavedSearch[] {
   }
 }
 
-function saveSavedSearches(searches: SavedSearch[]): void {
+function saveSavedSearches(searches: SavedSearch[]): boolean {
   if (typeof window === "undefined") {
-    return;
+    return false;
   }
 
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(searches));
+    return true;
   } catch {
+    return false;
     // Ignore storage failures so the search UI remains usable.
   }
 }
@@ -98,7 +100,11 @@ export function addSavedSearch(
   };
 
   const searches = getSavedSearches();
-  saveSavedSearches([...searches, savedSearch]);
+  const saved = saveSavedSearches([...searches, savedSearch]);
+
+  if (!saved) {
+    throw new Error("Unable to save search.");
+  }
 
   return savedSearch;
 }
