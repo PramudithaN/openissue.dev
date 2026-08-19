@@ -9,6 +9,25 @@ export default defineConfig({
   test: {
     environment: "node",
     globals: true,
-    include: ["tests/**/*.test.ts"],
+    include: ["tests/**/*.test.{ts,tsx}"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "lcov"],
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: [
+        "src/components/ui/**",
+        "src/app/layout.tsx",
+        "src/app/page.tsx",
+        "src/components/theme-provider.tsx",
+        "src/features/issues/types/**",
+        "src/features/issues/data/**",
+      ],
+      thresholds: {
+        statements: 95,
+        branches: 92,
+        functions: 95,
+        lines: 95,
+      },
+    },
   },
 });
