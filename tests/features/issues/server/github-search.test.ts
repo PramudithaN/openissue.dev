@@ -409,4 +409,133 @@ describe("searchGitHubIssues", () => {
       helpStatus: "claimed",
     });
   });
+
+  it("supports custom technology terms and surfaces GitHub API errors", async () => {
+    const fetchMock = vi.fn();
+    searchPageResponses([]).forEach((response) => fetchMock.mockResolvedValueOnce(response));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await searchGitHubIssues({
+      tech: "Web Components",
+      label: null,
+      sort: null,
+      linkedPr: null,
+    });
+    expect(new URL(fetchMock.mock.calls[0][0]).searchParams.get("q")).toBe(
+      "topic:web-components archived:false",
+    );
+
+    fetchMock
+      .mockReset()
+      .mockImplementation(() =>
+        Promise.resolve(new Response("forbidden", { status: 403 })),
+      );
+    await expect(
+      searchGitHubIssues({
+        tech: "Java",
+        label: null,
+        sort: null,
+        linkedPr: null,
+      }),
+    ).rejects.toThrow("GitHub API error 403: forbidden");
+  });
+
+  it("returns an empty result when a topic has no matching repositories", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      jsonResponse({ total_count: 0, items: [] }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await searchGitHubIssues({
+      tech: "Kubernetes",
+      label: "help-wanted",
+      sort: "updated",
+      linkedPr: "any",
+      page: 2,
+    });
+
+    expect(result).toMatchObject({ candidateCount: 0, issues: [], page: 2 });
+  });
+
+  it("tolerates enrichment failures and treats assigned issues as claimed", async () => {
+    process.env.GITHUB_TOKEN = "test-token";
+    const assignedIssue = githubIssue({
+      comments: 1,
+      assignee: { login: "maintainer" },
+      assignees: [{ login: "maintainer" }],
+      repository_url: "https://example.test/repos/acme/widgets",
+    });
+    const failure = new Response("unavailable", { status: 503 });
+    const fetchMock = vi.fn();
+    searchPageResponses([assignedIssue]).forEach((response) =>
+      fetchMock.mockResolvedValueOnce(response),
+    );
+    fetchMock
+      .mockResolvedValueOnce(failure)
+      .mockResolvedValueOnce(new Response("unavailable", { status: 503 }))
+      .mockResolvedValueOnce(new Response("unavailable", { status: 503 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await searchGitHubIssues({
+      tech: "Java",
+      label: "help-wanted",
+      sort: "updated",
+      linkedPr: "any",
+    });
+
+    expect(result.issues[0]).toMatchObject({
+      assigned: true,
+      stars: null,
+      linkedPrCount: null,
+      helpStatus: "claimed",
+    });
+  });
+
+  it("distinguishes resolved and still-open discussion threads", async () => {
+    process.env.GITHUB_TOKEN = "test-token";
+    const resolvedIssue = githubIssue({
+      html_url: "https://github.com/acme/widgets/issues/1",
+      number: 1,
+      comments: 1,
+    });
+    const openIssue = githubIssue({
+      html_url: "https://github.com/acme/widgets/issues/2",
+      number: 2,
+      comments: 1,
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ total_count: 2, items: [resolvedIssue, openIssue] }))
+      .mockResolvedValueOnce(jsonResponse({ total_count: 2, items: [] }))
+      .mockResolvedValueOnce(jsonResponse({ total_count: 2, items: [] }))
+      .mockResolvedValueOnce(jsonResponse({ total_count: 2, items: [] }))
+      .mockResolvedValueOnce(jsonResponse({ total_count: 2, items: [] }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          full_name: "acme/widgets",
+          html_url: "https://github.com/acme/widgets",
+          stargazers_count: 500,
+          archived: false,
+        }),
+      )
+      .mockResolvedValueOnce(jsonResponse([{ body: "This was fixed in #99" }]))
+      .mockResolvedValueOnce(jsonResponse([{ body: "Thanks for reporting this" }]))
+      .mockResolvedValueOnce(jsonResponse([]))
+      .mockResolvedValueOnce(jsonResponse([]));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await searchGitHubIssues({
+      tech: "Java",
+      label: "help-wanted",
+      sort: "updated",
+      linkedPr: "any",
+    });
+
+    expect(result.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: resolvedIssue.html_url, helpStatus: "resolved" }),
+        expect.objectContaining({ id: openIssue.html_url, helpStatus: "open" }),
+      ]),
+    );
+  });
 });
