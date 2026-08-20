@@ -22,6 +22,7 @@ export default defineConfig({
         "src/app/api/auth/**",
         "src/lib/auth-schema.ts",
         "src/lib/auth.ts",
+        "src/lib/auth-client.ts",
         "src/features/issues/types/**",
         "src/features/issues/data/**",
       ],

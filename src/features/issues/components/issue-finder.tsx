@@ -1,7 +1,8 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Bookmark, GitPullRequest, Search, Trash2 } from "lucide-react";
+import Image from "next/image";
+import { Bookmark, Search, Trash2 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AuthControls } from "@/components/auth-controls";
 import { Badge } from "@/components/ui/badge";
@@ -10,8 +11,13 @@ import {
   addSavedSearch,
   deleteSavedSearch,
   getSavedSearches,
+  replaceSavedSearches,
   type SavedSearch,
 } from "@/features/issues/lib/saved-searches";
+import {
+  deleteCloudSavedSearch,
+  syncSavedSearches,
+} from "@/features/issues/lib/saved-search-cloud";
 import {
   Card,
   CardContent,
@@ -40,8 +46,10 @@ import {
 import { compactNumber } from "@/features/issues/lib/format";
 import { mergeRankedIssues, rankIssues } from "@/features/issues/lib/ranking";
 import type { SearchResponse, Issue } from "@/features/issues/types/search";
+import { authClient } from "@/lib/auth-client";
 
 export function IssueFinder() {
+  const { data: session, isPending: isSessionPending } = authClient.useSession();
   const [tech, setTech] = useState("Java");
   const [label, setLabel] = useState("help-wanted");
   const [sort, setSort] = useState("updated");
@@ -59,8 +67,35 @@ export function IssueFinder() {
   const [savedSearchName, setSavedSearchName] = useState("");
 
   useEffect(() => {
+    // Hydration must start with the server's empty snapshot before reading browser storage.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSavedSearches(getSavedSearches());
   }, []);
+
+  useEffect(() => {
+    if (isSessionPending || !session?.user.id) return;
+
+    let cancelled = false;
+
+    async function syncWithAccount() {
+      try {
+        const syncedSearches = await syncSavedSearches(getSavedSearches());
+
+        if (!cancelled) {
+          replaceSavedSearches(syncedSearches);
+          setSavedSearches(syncedSearches);
+        }
+      } catch {
+        // Local saved searches remain available if account sync is unavailable.
+      }
+    }
+
+    void syncWithAccount();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isSessionPending, session?.user.id]);
 
   const selectedLabel = useMemo(
     () =>
@@ -114,18 +149,43 @@ export function IssueFinder() {
       setSavedSearches((current) => [...current, savedSearch]);
       setSavedSearchName("");
       setError(null);
-    }catch (saveError) {
+
+      if (session?.user.id) {
+        void syncSavedSearches(getSavedSearches())
+          .then((syncedSearches) => {
+            replaceSavedSearches(syncedSearches);
+            setSavedSearches(syncedSearches);
+          })
+          .catch(() => {
+            setError("Search saved locally, but account sync failed.");
+          });
+      }
+    } catch (saveError) {
       setError(
         saveError instanceof Error
-        ? saveError.message
-        : "Unable to save search.",
+          ? saveError.message
+          : "Unable to save search.",
       );
     }
   }
 
-  function handleDeleteSavedSearch(id: string) {
+  async function handleDeleteSavedSearch(id: string) {
+    if (session?.user.id) {
+      try {
+        await deleteCloudSavedSearch(id);
+      } catch (deleteError) {
+        setError(
+          deleteError instanceof Error
+            ? deleteError.message
+            : "Unable to remove the saved search from your account.",
+        );
+        return;
+      }
+    }
+
     deleteSavedSearch(id);
     setSavedSearches(getSavedSearches());
+    setError(null);
   }
 
   function handleRunSavedSearch(savedSearch: SavedSearch) {
@@ -252,7 +312,13 @@ export function IssueFinder() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="secondary" className="gap-1.5">
-                    <GitPullRequest className="h-3.5 w-3.5" />
+                    <Image
+                      src="/openissue-logo.png"
+                      alt=""
+                      width={16}
+                      height={16}
+                      className="h-4 w-4"
+                    />
                     OSS Issue Finder
                   </Badge>
                   <Badge variant="outline">GitHub Search API</Badge>
@@ -513,9 +579,9 @@ export function IssueFinder() {
                           variant="outline"
                           size="sm"
                           aria-label={`Delete ${savedSearch.name}`}
-                          onClick={() =>
-                            handleDeleteSavedSearch(savedSearch.id)
-                          }
+                          onClick={() => {
+                            void handleDeleteSavedSearch(savedSearch.id);
+                          }}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>

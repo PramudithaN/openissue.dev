@@ -18,7 +18,7 @@ export type SavedSearch = {
 
 const STORAGE_KEY = "openissue:saved-searches";
 
-function isValidSavedSearch(value: unknown): value is SavedSearch {
+export function isValidSavedSearch(value: unknown): value is SavedSearch {
   if (!value || typeof value !== "object") {
     return false;
   }
@@ -76,6 +76,12 @@ function saveSavedSearches(searches: SavedSearch[]): boolean {
   } catch {
     return false;
     // Ignore storage failures so the search UI remains usable.
+  }
+}
+
+export function replaceSavedSearches(searches: SavedSearch[]): void {
+  if (!saveSavedSearches(searches)) {
+    throw new Error("Unable to update saved searches.");
   }
 }
 
