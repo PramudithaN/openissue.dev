@@ -49,7 +49,7 @@ export type GitHubIssue = {
   created_at: string;
   repository_url: string;
   labels: GitHubLabel[];
-  assignee: unknown | null;
+  assignee: unknown;
   assignees?: unknown[];
 };
 

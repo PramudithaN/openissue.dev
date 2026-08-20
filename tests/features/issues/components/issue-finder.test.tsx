@@ -136,7 +136,7 @@ describe("IssueFinder", () => {
     render(<IssueFinder />);
     fireEvent.submit(screen.getByRole("button", { name: "Search" }).closest("form")!);
 
-    expect(await screen.findByText("Ranked issues")).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Ranked issues" })).toBeTruthy();
     expect(screen.getByText("Issue 24")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Load More" }));
     expect(await screen.findByText("Issue 25")).toBeTruthy();

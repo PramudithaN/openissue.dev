@@ -11,7 +11,18 @@ import { Separator } from "@/components/ui/separator";
 import { compactNumber, relativeDate } from "@/features/issues/lib/format";
 import type { Issue } from "@/features/issues/types/search";
 
-export function IssueCard({ issue }: { issue: Issue }) {
+export function IssueCard({ issue }: Readonly<{ issue: Issue }>) {
+  let qualityBadgeClassName =
+    "bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20";
+
+  if (issue.qualityScore >= 70) {
+    qualityBadgeClassName =
+      "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20";
+  } else if (issue.qualityScore >= 40) {
+    qualityBadgeClassName =
+      "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20";
+  }
+
   return (
     <Card>
       <CardHeader className="gap-3">
@@ -32,19 +43,9 @@ export function IssueCard({ issue }: { issue: Issue }) {
                   : "Hacktoberfest label"}
               </Badge>
             ) : null}
-            {issue.qualityScore >= 70 ? (
-              <Badge className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20">
-                {issue.qualityScore} quality
-              </Badge>
-            ) : issue.qualityScore >= 40 ? (
-              <Badge className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20">
-                {issue.qualityScore} quality
-              </Badge>
-            ) : (
-              <Badge className="bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20">
-                {issue.qualityScore} quality
-              </Badge>
-            )}
+            <Badge className={qualityBadgeClassName}>
+              {issue.qualityScore} quality
+            </Badge>
             {issue.helpStatus === "open" && (
               <Badge className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20">
                 Needs Help
