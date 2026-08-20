@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Bookmark, GitPullRequest, Search, Trash2 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { AuthControls } from "@/components/auth-controls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -256,7 +257,10 @@ export function IssueFinder() {
                   </Badge>
                   <Badge variant="outline">GitHub Search API</Badge>
                 </div>
-                <ThemeToggle />
+                <div className="flex items-center gap-2">
+                  <AuthControls />
+                  <ThemeToggle />
+                </div>
               </div>
               <div className="max-w-3xl space-y-4">
                 <h1 className="text-4xl font-semibold tracking-normal text-foreground sm:text-5xl">
