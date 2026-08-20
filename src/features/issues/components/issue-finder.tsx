@@ -1,7 +1,8 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Bookmark, GitPullRequest, Search, Trash2 } from "lucide-react";
+import Image from "next/image";
+import { Bookmark, Search, Trash2 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AuthControls } from "@/components/auth-controls";
 import { Badge } from "@/components/ui/badge";
@@ -150,7 +151,7 @@ export function IssueFinder() {
       setError(null);
 
       if (session?.user.id) {
-        void syncSavedSearches([savedSearch])
+        void syncSavedSearches(getSavedSearches())
           .then((syncedSearches) => {
             replaceSavedSearches(syncedSearches);
             setSavedSearches(syncedSearches);
@@ -311,7 +312,13 @@ export function IssueFinder() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="secondary" className="gap-1.5">
-                    <GitPullRequest className="h-3.5 w-3.5" />
+                    <Image
+                      src="/openissue-logo.png"
+                      alt=""
+                      width={16}
+                      height={16}
+                      className="h-4 w-4"
+                    />
                     OSS Issue Finder
                   </Badge>
                   <Badge variant="outline">GitHub Search API</Badge>

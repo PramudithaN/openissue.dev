@@ -98,9 +98,23 @@ describe("saved searches API", () => {
         body: JSON.stringify({ searches: [{ ...savedSearch, createdAt: "invalid" }] }),
       }),
     );
+    const malformedSearch = await POST(
+      new Request("http://localhost/api/saved-searches", {
+        method: "POST",
+        body: JSON.stringify({ searches: [{}] }),
+      }),
+    );
+    const oversizedBatch = await POST(
+      new Request("http://localhost/api/saved-searches", {
+        method: "POST",
+        body: JSON.stringify({ searches: Array(101).fill(savedSearch) }),
+      }),
+    );
 
     expect(invalidJson.status).toBe(400);
     expect(invalidSearch.status).toBe(400);
+    expect(malformedSearch.status).toBe(400);
+    expect(oversizedBatch.status).toBe(400);
     expect(insert).not.toHaveBeenCalled();
   });
 

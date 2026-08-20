@@ -44,6 +44,31 @@ describe("saved search cloud client", () => {
     });
   });
 
+  it("uploads large local collections in server-safe batches", async () => {
+    const searches = Array.from({ length: 101 }, (_, index) => ({
+      ...search,
+      id: `saved-${index}`,
+    }));
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ searches: searches.slice(0, 100) }), {
+          status: 200,
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ searches }), { status: 200 }),
+      );
+
+    await expect(syncSavedSearches(searches)).resolves.toEqual(searches);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(
+      JSON.parse(vi.mocked(fetch).mock.calls[0][1]?.body as string).searches,
+    ).toHaveLength(100);
+    expect(
+      JSON.parse(vi.mocked(fetch).mock.calls[1][1]?.body as string).searches,
+    ).toHaveLength(1);
+  });
+
   it("reports failed sync and delete requests", async () => {
     vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 500 }));
 

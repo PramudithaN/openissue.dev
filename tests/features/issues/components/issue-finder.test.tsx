@@ -210,6 +210,53 @@ describe("IssueFinder", () => {
     ).toBeTruthy();
   });
 
+  it("syncs the complete local collection after an authenticated save", async () => {
+    useSession.mockReturnValue({
+      data: { user: { id: "user-1", name: "Octo Cat" } },
+      isPending: false,
+    });
+    const olderSearch = {
+      id: "saved-older",
+      name: "Older local search",
+      tech: "Rust",
+      label: "bug",
+      sort: "updated",
+      linkedPr: "any",
+      hacktoberfest: "any",
+      createdAt: "2026-08-18T00:00:00.000Z",
+    };
+    const saved = {
+      ...olderSearch,
+      id: "saved-new",
+      name: "Java",
+      tech: "Java",
+      createdAt: "2026-08-19T00:00:00.000Z",
+    };
+    addSavedSearch.mockReturnValue(saved);
+    getSavedSearches
+      .mockReturnValueOnce([olderSearch])
+      .mockReturnValueOnce([olderSearch])
+      .mockReturnValue([olderSearch, saved]);
+    syncSavedSearches
+      .mockResolvedValueOnce([olderSearch])
+      .mockResolvedValueOnce([olderSearch, saved]);
+
+    render(<IssueFinder />);
+    await waitFor(() => expect(syncSavedSearches).toHaveBeenCalledTimes(1));
+    fireEvent.change(screen.getByLabelText("Saved search name"), {
+      target: { value: "Java" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /save current search/i }));
+
+    await waitFor(() =>
+      expect(syncSavedSearches).toHaveBeenLastCalledWith([olderSearch, saved]),
+    );
+    expect(replaceSavedSearches).toHaveBeenLastCalledWith([
+      olderSearch,
+      saved,
+    ]);
+  });
+
   it("removes an authenticated search from cloud and local storage", async () => {
     const saved = {
       id: "saved-1",
@@ -233,6 +280,32 @@ describe("IssueFinder", () => {
 
     await waitFor(() => expect(deleteCloudSavedSearch).toHaveBeenCalledWith("saved-1"));
     expect(deleteSavedSearch).toHaveBeenCalledWith("saved-1");
+  });
+
+  it("keeps a saved search locally when account deletion fails", async () => {
+    const saved = {
+      id: "saved-1",
+      name: "React bugs",
+      tech: "React",
+      label: "bug",
+      sort: "created",
+      linkedPr: "no",
+      hacktoberfest: "only",
+      createdAt: "2026-08-19T00:00:00.000Z",
+    };
+    useSession.mockReturnValue({
+      data: { user: { id: "user-1", name: "Octo Cat" } },
+      isPending: false,
+    });
+    getSavedSearches.mockReturnValue([saved]);
+    syncSavedSearches.mockResolvedValue([saved]);
+    deleteCloudSavedSearch.mockRejectedValue(new Error("Cloud unavailable"));
+
+    render(<IssueFinder />);
+    fireEvent.click(await screen.findByRole("button", { name: "Delete React bugs" }));
+
+    expect(await screen.findByText("Cloud unavailable")).toBeTruthy();
+    expect(deleteSavedSearch).not.toHaveBeenCalled();
   });
 
   it("searches, ranks, and loads another page", async () => {
