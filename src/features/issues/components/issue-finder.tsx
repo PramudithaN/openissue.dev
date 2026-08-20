@@ -474,7 +474,7 @@ export function IssueFinder() {
       </section>
 
       <section className="mx-auto grid w-full max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[260px_minmax(0,1fr)] lg:px-8">
-        <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
+        <aside className="space-y-4 lg:self-start">
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Quick searches</CardTitle>
