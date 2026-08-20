@@ -1,162 +1,62 @@
 # OpenIssue.dev
 
-> Discover open-source contribution opportunities by technology, not by endless searching.
+[OpenIssue.dev](https://openissue-dev.vercel.app/) helps developers find active, contributor-friendly GitHub issues by technology.
 
-OpenIssue.dev helps developers find active GitHub issues that are actually looking for contributors. Search by technology stack, filter contributor-friendly labels, and quickly identify issues that match your skills.
+## What it does
 
-Whether you're making your first open-source contribution or looking for a new project to contribute to, OpenIssue.dev makes issue discovery simple and efficient.
+- Searches live GitHub issues by language or ecosystem topic
+- Filters by contributor-friendly label, linked pull requests, and Hacktoberfest readiness
+- Sorts and ranks results using activity, repository, assignment, and discussion signals
+- Supports reusable saved searches without requiring an account
+- Adds GitHub sign-in for cloud-backed saved searches that survive cleared browser storage
+- Provides light, dark, and system themes with a responsive interface
 
----
+## Quick start
 
-## ✨ Features
+Requirements: Node.js 22+, npm, a GitHub token, and a Turso database.
 
-### 🔍 Search by Technology
+```bash
+npm install
+cp .env.example .env.local
+npm run dev
+```
 
-Find issues related to:
+Open [http://localhost:3000](http://localhost:3000). GitHub OAuth and database persistence require the additional configuration described in [Setup and deployment](doc/setup.md).
 
-* Java
-* Spring Boot
-* React
-* Angular
-* Vue
-* Python
-* Django
-* FastAPI
-* Go
-* Rust
-* Kubernetes
-* Docker
-* Terraform
-* AWS
-* Azure
-* GCP
-* And many more...
+## Low-level design
 
-### 🏷️ Contributor-Friendly Labels
+```mermaid
+flowchart LR
+  UI[Issue Finder UI] --> SearchRoute["GET /api/search"]
+  SearchRoute --> SearchService[Search and ranking]
+  SearchService <--> GitHubAPI[GitHub APIs]
+  SearchService --> UI
 
-Discover issues tagged with:
+  UI <--> Local[(Local storage)]
+  UI --> AuthRoute["/api/auth/*"]
+  AuthRoute --> BetterAuth[Better Auth]
+  BetterAuth <--> GitHubOAuth[GitHub OAuth]
 
-* `help wanted`
-* `good first issue`
-* `up-for-grabs`
-* `first-timers-only`
-* `documentation`
-* `bug`
-* `enhancement`
+  Local --> SyncClient[Saved-search sync]
+  SyncClient --> SavedRoute["/api/saved-searches"]
+  SavedRoute --> BetterAuth
+  SavedRoute --> Drizzle[Drizzle ORM]
+  BetterAuth --> Drizzle
+  Drizzle <--> Turso[(Turso / libSQL)]
+```
 
-### 📊 Smart Filtering
+See [Architecture and data flow](doc/architecture.md) for the expanded request flows, persistence model, and component relationships.
 
-Filter results by:
+## Documentation
 
-* Technology
-* Labels
-* Repository popularity
-* Last updated date
-* Number of comments
-* Issue activity
+- [Setup and deployment](doc/setup.md)
+- [Architecture and data flow](doc/architecture.md)
+- [Development and contributing](doc/contributing.md)
 
-### ⚡ Fast & Lightweight
+## Tech stack
 
-* Serverless architecture
-* Powered by GitHub APIs
-* No installation required
-* Optimized for Vercel deployment
+Next.js 16, React 19, TypeScript, Tailwind CSS, Better Auth, Drizzle ORM, Turso/libSQL, GitHub APIs, Vitest, Vercel, and SonarQube Cloud.
 
----
+## License
 
-## 🎯 Why OpenIssue.dev?
-
-Finding a suitable open-source issue can be frustrating:
-
-* Thousands of repositories
-* Inconsistent labels
-* Outdated issue lists
-* Endless GitHub searches
-
-OpenIssue.dev brings contributor-friendly issues into one place and helps developers focus on contributing instead of searching.
-
----
-
-## 🚀 Use Cases
-
-### First-Time Contributors
-
-Find beginner-friendly issues and start contributing to open source with confidence.
-
-### Experienced Developers
-
-Discover challenging issues in technologies already used professionally.
-
-### Students
-
-Build real-world experience by contributing to active projects.
-
-### Open Source Enthusiasts
-
-Explore projects across multiple ecosystems and communities.
-
----
-
-## 🏗️ How It Works
-
-1. Select a technology stack.
-2. Choose one or more contribution labels.
-3. Browse active GitHub issues.
-4. Open the issue directly on GitHub.
-5. Start contributing.
-
----
-
-## 📈 Roadmap
-
-### MVP
-
-* [x] Technology-based issue discovery
-* [x] Help Wanted filtering
-* [x] Good First Issue filtering
-* [x] GitHub issue links
-* [x] Repository metadata
-
-### Future Enhancements
-
-* [ ] GitHub authentication
-* [ ] Personalized recommendations
-* [ ] Saved searches
-* [ ] Email alerts
-* [ ] Trending opportunities
-* [ ] Repository health scoring
-* [ ] Contribution history tracking
-* [ ] Weekly digest
-
----
-
-## 🛠️ Tech Stack
-
-* Next.js
-* React
-* TypeScript
-* Tailwind CSS
-* GitHub Search API
-* Vercel
-
----
-
-## 🤝 Contributing
-
-Contributions, feature requests, and bug reports are welcome.
-
-If you have ideas to make open-source discovery easier, feel free to open an issue or submit a pull request.
-
----
-
-## 🌟 Mission
-
-OpenIssue.dev exists to reduce the gap between developers who want to contribute and open-source projects that need help.
-
-**Less searching. More contributing.** 🚀
-
----
-
-## 📄 License
-
-Apache 2.0 License.
+Licensed under the [Apache License 2.0](LICENSE).
