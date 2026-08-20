@@ -1,4 +1,4 @@
-export function Metric({ label, value }: { label: string; value: string }) {
+export function Metric({ label, value }: Readonly<{ label: string; value: string }>) {
   return (
     <div className="rounded-md border bg-background p-3">
       <div className="text-xs text-muted-foreground">{label}</div>

@@ -28,7 +28,9 @@ function normalize(value: string | null) {
 }
 
 function quoteSearchValue(value: string) {
-  return /[\s#+.]/.test(value) ? `"${value.replaceAll('"', '\\"')}"` : value;
+  const escapedValue = value.replaceAll('"', String.raw`\"`);
+
+  return /[\s#+.]/.test(value) ? `"${escapedValue}"` : value;
 }
 
 function buildTechQualifier(tech: string) {
