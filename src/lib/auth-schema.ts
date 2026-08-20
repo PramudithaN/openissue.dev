@@ -100,9 +100,28 @@ export const verification = sqliteTable(
   (table) => [index("verification_identifier_idx").on(table.identifier)],
 );
 
+export const savedSearch = sqliteTable(
+  "saved_search",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    tech: text("tech").notNull(),
+    label: text("label").notNull(),
+    sort: text("sort").notNull(),
+    linkedPr: text("linked_pr").notNull(),
+    hacktoberfest: text("hacktoberfest").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [index("saved_search_userId_idx").on(table.userId)],
+);
+
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),
+  savedSearches: many(savedSearch),
 }));
 
 export const sessionRelations = relations(session, ({ one }) => ({
@@ -115,6 +134,13 @@ export const sessionRelations = relations(session, ({ one }) => ({
 export const accountRelations = relations(account, ({ one }) => ({
   user: one(user, {
     fields: [account.userId],
+    references: [user.id],
+  }),
+}));
+
+export const savedSearchRelations = relations(savedSearch, ({ one }) => ({
+  user: one(user, {
+    fields: [savedSearch.userId],
     references: [user.id],
   }),
 }));

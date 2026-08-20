@@ -5,6 +5,8 @@ import {
   addSavedSearch,
   deleteSavedSearch,
   getSavedSearches,
+  isValidSavedSearch,
+  replaceSavedSearches,
 } from "@/features/issues/lib/saved-searches";
 
 const validSearch = {
@@ -68,6 +70,13 @@ describe("saved searches", () => {
     expect(getSavedSearches()).toEqual([]);
   });
 
+  it("replaces the local cache with searches restored from an account", () => {
+    replaceSavedSearches([validSearch]);
+
+    expect(getSavedSearches()).toEqual([validSearch]);
+    expect(isValidSavedSearch(validSearch)).toBe(true);
+  });
+
   it("reports storage write failures", () => {
     vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
       throw new Error("quota exceeded");
@@ -83,5 +92,8 @@ describe("saved searches", () => {
         hacktoberfest: "any",
       }),
     ).toThrow("Unable to save search.");
+    expect(() => replaceSavedSearches([])).toThrow(
+      "Unable to update saved searches.",
+    );
   });
 });

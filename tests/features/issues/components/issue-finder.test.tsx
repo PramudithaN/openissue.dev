@@ -4,16 +4,42 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Issue, SearchResponse } from "@/features/issues/types/search";
 
-const { addSavedSearch, deleteSavedSearch, getSavedSearches } = vi.hoisted(() => ({
+const {
+  addSavedSearch,
+  deleteSavedSearch,
+  getSavedSearches,
+  replaceSavedSearches,
+  syncSavedSearches,
+  deleteCloudSavedSearch,
+  useSession,
+} = vi.hoisted(() => ({
   addSavedSearch: vi.fn(),
   deleteSavedSearch: vi.fn(),
   getSavedSearches: vi.fn(),
+  replaceSavedSearches: vi.fn(),
+  syncSavedSearches: vi.fn(),
+  deleteCloudSavedSearch: vi.fn(),
+  useSession: vi.fn(),
 }));
 
 vi.mock("@/features/issues/lib/saved-searches", () => ({
   addSavedSearch,
   deleteSavedSearch,
   getSavedSearches,
+  replaceSavedSearches,
+}));
+
+vi.mock("@/features/issues/lib/saved-search-cloud", () => ({
+  syncSavedSearches,
+  deleteCloudSavedSearch,
+}));
+
+vi.mock("@/lib/auth-client", () => ({
+  authClient: {
+    useSession,
+    signIn: { social: vi.fn() },
+    signOut: vi.fn(),
+  },
 }));
 
 vi.mock("@/components/theme-toggle", () => ({
@@ -74,6 +100,10 @@ beforeEach(() => {
   getSavedSearches.mockReset().mockReturnValue([]);
   addSavedSearch.mockReset();
   deleteSavedSearch.mockReset();
+  replaceSavedSearches.mockReset();
+  syncSavedSearches.mockReset().mockResolvedValue([]);
+  deleteCloudSavedSearch.mockReset().mockResolvedValue(undefined);
+  useSession.mockReset().mockReturnValue({ data: null, isPending: false });
   vi.stubGlobal("fetch", vi.fn());
 });
 
@@ -83,6 +113,30 @@ afterEach(() => {
 });
 
 describe("IssueFinder", () => {
+  it("restores and caches account searches after sign-in", async () => {
+    const saved = {
+      id: "saved-cloud",
+      name: "Cloud search",
+      tech: "Go",
+      label: "bug",
+      sort: "created",
+      linkedPr: "any",
+      hacktoberfest: "any",
+      createdAt: "2026-08-19T00:00:00.000Z",
+    };
+    useSession.mockReturnValue({
+      data: { user: { id: "user-1", name: "Octo Cat" } },
+      isPending: false,
+    });
+    syncSavedSearches.mockResolvedValue([saved]);
+
+    render(<IssueFinder />);
+
+    expect(await screen.findByText("Cloud search")).toBeTruthy();
+    expect(syncSavedSearches).toHaveBeenCalledWith([]);
+    expect(replaceSavedSearches).toHaveBeenCalledWith([saved]);
+  });
+
   it("validates and manages saved searches", async () => {
     const saved = {
       id: "saved-1",
@@ -123,6 +177,62 @@ describe("IssueFinder", () => {
     fireEvent.change(screen.getByLabelText("Saved search name"), { target: { value: "Java" } });
     fireEvent.click(screen.getByRole("button", { name: /save current search/i }));
     expect(screen.getByText("Storage unavailable")).toBeTruthy();
+  });
+
+  it("keeps an authenticated save locally when account sync fails", async () => {
+    useSession.mockReturnValue({
+      data: { user: { id: "user-1", name: "Octo Cat" } },
+      isPending: false,
+    });
+    const saved = {
+      id: "saved-1",
+      name: "Java",
+      tech: "Java",
+      label: "help-wanted",
+      sort: "updated",
+      linkedPr: "any",
+      hacktoberfest: "any",
+      createdAt: "2026-08-19T00:00:00.000Z",
+    };
+    addSavedSearch.mockReturnValue(saved);
+    syncSavedSearches
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce(new Error("offline"));
+
+    render(<IssueFinder />);
+    fireEvent.change(screen.getByLabelText("Saved search name"), {
+      target: { value: "Java" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /save current search/i }));
+
+    expect(
+      await screen.findByText("Search saved locally, but account sync failed."),
+    ).toBeTruthy();
+  });
+
+  it("removes an authenticated search from cloud and local storage", async () => {
+    const saved = {
+      id: "saved-1",
+      name: "React bugs",
+      tech: "React",
+      label: "bug",
+      sort: "created",
+      linkedPr: "no",
+      hacktoberfest: "only",
+      createdAt: "2026-08-19T00:00:00.000Z",
+    };
+    useSession.mockReturnValue({
+      data: { user: { id: "user-1", name: "Octo Cat" } },
+      isPending: false,
+    });
+    getSavedSearches.mockReturnValue([saved]);
+    syncSavedSearches.mockResolvedValue([saved]);
+
+    render(<IssueFinder />);
+    fireEvent.click(await screen.findByRole("button", { name: "Delete React bugs" }));
+
+    await waitFor(() => expect(deleteCloudSavedSearch).toHaveBeenCalledWith("saved-1"));
+    expect(deleteSavedSearch).toHaveBeenCalledWith("saved-1");
   });
 
   it("searches, ranks, and loads another page", async () => {

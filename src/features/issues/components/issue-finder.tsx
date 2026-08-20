@@ -10,8 +10,13 @@ import {
   addSavedSearch,
   deleteSavedSearch,
   getSavedSearches,
+  replaceSavedSearches,
   type SavedSearch,
 } from "@/features/issues/lib/saved-searches";
+import {
+  deleteCloudSavedSearch,
+  syncSavedSearches,
+} from "@/features/issues/lib/saved-search-cloud";
 import {
   Card,
   CardContent,
@@ -40,8 +45,10 @@ import {
 import { compactNumber } from "@/features/issues/lib/format";
 import { mergeRankedIssues, rankIssues } from "@/features/issues/lib/ranking";
 import type { SearchResponse, Issue } from "@/features/issues/types/search";
+import { authClient } from "@/lib/auth-client";
 
 export function IssueFinder() {
+  const { data: session, isPending: isSessionPending } = authClient.useSession();
   const [tech, setTech] = useState("Java");
   const [label, setLabel] = useState("help-wanted");
   const [sort, setSort] = useState("updated");
@@ -59,8 +66,35 @@ export function IssueFinder() {
   const [savedSearchName, setSavedSearchName] = useState("");
 
   useEffect(() => {
+    // Hydration must start with the server's empty snapshot before reading browser storage.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSavedSearches(getSavedSearches());
   }, []);
+
+  useEffect(() => {
+    if (isSessionPending || !session?.user.id) return;
+
+    let cancelled = false;
+
+    async function syncWithAccount() {
+      try {
+        const syncedSearches = await syncSavedSearches(getSavedSearches());
+
+        if (!cancelled) {
+          replaceSavedSearches(syncedSearches);
+          setSavedSearches(syncedSearches);
+        }
+      } catch {
+        // Local saved searches remain available if account sync is unavailable.
+      }
+    }
+
+    void syncWithAccount();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isSessionPending, session?.user.id]);
 
   const selectedLabel = useMemo(
     () =>
@@ -114,18 +148,43 @@ export function IssueFinder() {
       setSavedSearches((current) => [...current, savedSearch]);
       setSavedSearchName("");
       setError(null);
-    }catch (saveError) {
+
+      if (session?.user.id) {
+        void syncSavedSearches([savedSearch])
+          .then((syncedSearches) => {
+            replaceSavedSearches(syncedSearches);
+            setSavedSearches(syncedSearches);
+          })
+          .catch(() => {
+            setError("Search saved locally, but account sync failed.");
+          });
+      }
+    } catch (saveError) {
       setError(
         saveError instanceof Error
-        ? saveError.message
-        : "Unable to save search.",
+          ? saveError.message
+          : "Unable to save search.",
       );
     }
   }
 
-  function handleDeleteSavedSearch(id: string) {
+  async function handleDeleteSavedSearch(id: string) {
+    if (session?.user.id) {
+      try {
+        await deleteCloudSavedSearch(id);
+      } catch (deleteError) {
+        setError(
+          deleteError instanceof Error
+            ? deleteError.message
+            : "Unable to remove the saved search from your account.",
+        );
+        return;
+      }
+    }
+
     deleteSavedSearch(id);
     setSavedSearches(getSavedSearches());
+    setError(null);
   }
 
   function handleRunSavedSearch(savedSearch: SavedSearch) {
@@ -513,9 +572,9 @@ export function IssueFinder() {
                           variant="outline"
                           size="sm"
                           aria-label={`Delete ${savedSearch.name}`}
-                          onClick={() =>
-                            handleDeleteSavedSearch(savedSearch.id)
-                          }
+                          onClick={() => {
+                            void handleDeleteSavedSearch(savedSearch.id);
+                          }}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
