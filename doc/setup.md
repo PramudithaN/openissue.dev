@@ -29,6 +29,10 @@ Configure these values in `.env.local`:
 | `OAUTH_PROXY_SECRET` | Shared secret used by Better Auth's OAuth proxy for preview deployments |
 | `GITHUB_CLIENT_ID` | GitHub OAuth app client ID |
 | `GITHUB_CLIENT_SECRET` | GitHub OAuth app client secret |
+| `CRON_SECRET` | Bearer secret used to authorize the weekly Vercel Cron request |
+| `SMTP_USER` | Gmail address used to deliver weekly digest emails |
+| `SMTP_APP_PASSWORD` | Google App Password for authenticated Gmail SMTP |
+| `DIGEST_FROM_EMAIL` | Display name and Gmail sender address for digest emails |
 
 Never commit `.env.local` or paste real tokens into issues, pull requests, or logs.
 
@@ -38,8 +42,26 @@ Run the SQL migrations in filename order against the Turso database:
 
 1. `db/migrations/0001_better_auth.sql`
 2. `db/migrations/0002_saved_search.sql`
+3. `db/migrations/0003_weekly_digest.sql`
+4. `db/migrations/0004_repository_digest.sql`
+5. `db/migrations/0005_repository_digest_frequency.sql`
+6. `db/migrations/0006_alert_email.sql`
 
 The first migration creates Better Auth's user, session, account, and verification tables. The second creates user-owned saved searches. Migration files intentionally contain structure only—never credentials or production data.
+
+The third migration adds the weekly digest preference and last-delivery timestamp
+to users and creates shared weekly GitHub activity snapshots. The fourth stores
+each user's repository-alert template, selected repositories, display order, and
+the last delivered issue IDs used to skip unchanged repository-only digests.
+The fifth adds the user-selected daily, weekly, or fortnightly repository-alert
+frequency and its independent successful-delivery timestamp.
+The sixth adds an optional account-level alert email; when set, every digest is
+sent there instead of the GitHub-linked address. `vercel.json`
+invokes `/api/cron/weekly-digest` daily at 09:00 UTC; saved-search recommendations
+remain restricted to Mondays. Enable 2-Step Verification for the Gmail sender, create a dedicated
+Google App Password, and configure `SMTP_USER`, `SMTP_APP_PASSWORD`, and
+`DIGEST_FROM_EMAIL` before enabling digests in production. Store the App
+Password only in protected environment variables; never commit it.
 
 ## GitHub OAuth
 
@@ -60,3 +82,7 @@ After deploying, verify:
 2. GitHub sign-in returns to the application.
 3. A signed-in saved search is restored after clearing local storage.
 4. Removing that search prevents it from returning after refresh.
+5. Enabling and disabling the weekly digest persists after refresh.
+6. An authorized manual request to the digest cron route sends a digest only to opted-in users with saved searches.
+7. A signed-in user with a cloud saved search can use **Send digest now** once per weekly delivery window.
+8. A signed-in user can save, reopen, revise, enable, or disable a repository-alert template containing at most five autocomplete-selected repositories and select daily, weekly, or fortnightly delivery.

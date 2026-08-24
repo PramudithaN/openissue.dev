@@ -44,6 +44,7 @@ export type GitHubIssue = {
   number: number;
   html_url: string;
   title: string;
+  body?: string | null;
   comments: number;
   updated_at: string;
   created_at: string;
@@ -69,6 +70,25 @@ export type GitHubRepo = {
   stargazers_count: number;
   archived: boolean;
   topics?: string[];
+  description?: string | null;
+};
+
+export type RepositorySuggestion = {
+  fullName: string;
+  url: string;
+  description: string | null;
+  stars: number;
+};
+
+export type RepositoryDigestIssue = {
+  id: string;
+  title: string;
+  url: string;
+  summary: string;
+  labels: string[];
+  createdAt: string;
+  comments: number;
+  assigned: boolean;
 };
 
 export type GitHubTimelineEvent = {

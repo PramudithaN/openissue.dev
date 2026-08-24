@@ -9,6 +9,8 @@
 - Sorts and ranks results using activity, repository, assignment, and discussion signals
 - Supports reusable saved searches without requiring an account
 - Adds GitHub sign-in for cloud-backed saved searches that survive cleared browser storage
+- Sends optional weekly email digests based on cloud-backed saved searches
+- Supports an editable repository-alert template with up to five repositories and five recent issues from each
 - Provides light, dark, and system themes with a responsive interface
 
 ## Quick start
@@ -41,6 +43,9 @@ flowchart LR
   SyncClient --> SavedRoute["/api/saved-searches"]
   SavedRoute --> BetterAuth
   SavedRoute --> Drizzle[Drizzle ORM]
+  Cron[Weekly cron] --> SearchService
+  Cron --> Email[Gmail SMTP]
+  Drizzle --> Cron
   BetterAuth --> Drizzle
   Drizzle <--> Turso[(Turso / libSQL)]
 ```

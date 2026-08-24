@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { searchGitHubIssues } from "@/features/issues/server/github-search";
+import {
+  getRecentRepositoryIssues,
+  searchGitHubIssues,
+  searchGitHubRepositories,
+} from "@/features/issues/server/github-search";
 
 const originalToken = process.env.GITHUB_TOKEN;
 
@@ -536,6 +540,89 @@ describe("searchGitHubIssues", () => {
         expect.objectContaining({ id: resolvedIssue.html_url, helpStatus: "resolved" }),
         expect.objectContaining({ id: openIssue.html_url, helpStatus: "open" }),
       ]),
+    );
+  });
+});
+
+describe("repository digest GitHub queries", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("maps repository autocomplete results", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        total_count: 1,
+        items: [
+          {
+            full_name: "acme/widgets",
+            html_url: "https://github.com/acme/widgets",
+            description: "Widget tools",
+            stargazers_count: 250,
+            archived: false,
+          },
+        ],
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(searchGitHubRepositories(" widgets ")).resolves.toEqual([
+      {
+        fullName: "acme/widgets",
+        url: "https://github.com/acme/widgets",
+        description: "Widget tools",
+        stars: 250,
+      },
+    ]);
+    expect(String(fetchMock.mock.calls[0][0])).toContain(
+      "widgets+in%3Aname%2Cdescription+archived%3Afalse",
+    );
+  });
+
+  it("maps the five newest open repository issues with concise summaries", async () => {
+    const issues = Array.from({ length: 6 }, (_, index) =>
+      githubIssue({
+        number: index + 1,
+        html_url: `https://github.com/acme/widgets/issues/${index + 1}`,
+        title: `Issue ${index + 1}`,
+        body: index === 0 ? "A   concise\nsummary" : null,
+        comments: index,
+        assignee: index === 0 ? { login: "owner" } : null,
+      }),
+    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ total_count: 6, items: issues }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await getRecentRepositoryIssues("acme/widgets");
+    expect(result).toHaveLength(5);
+    expect(result[0]).toMatchObject({
+      summary: "A concise summary",
+      assigned: true,
+    });
+    expect(result[1].summary).toBe("No description provided.");
+    expect(String(fetchMock.mock.calls[0][0])).toContain("is%3Aopen");
+  });
+});
+
+describe("updated issue ranges", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("supports an open-ended updated-after qualifier", async () => {
+    const fetchMock = vi.fn();
+    searchPageResponses([]).forEach((response) =>
+      fetchMock.mockResolvedValueOnce(response),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await searchGitHubIssues({
+      tech: "Java",
+      label: "help-wanted",
+      sort: "updated",
+      linkedPr: "any",
+      updatedAfter: "2026-08-01",
+    });
+    expect(String(fetchMock.mock.calls[0][0])).toContain(
+      "updated%3A%3E%3D2026-08-01",
     );
   });
 });
