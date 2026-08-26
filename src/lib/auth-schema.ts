@@ -11,10 +11,17 @@ export const user = sqliteTable("user", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
+  alertEmail: text("alert_email"),
   emailVerified: integer("email_verified", { mode: "boolean" })
     .default(false)
     .notNull(),
   image: text("image"),
+  weeklyDigestEnabled: integer("weekly_digest_enabled", { mode: "boolean" })
+    .default(false)
+    .notNull(),
+  weeklyDigestLastSentAt: integer("weekly_digest_last_sent_at", {
+    mode: "timestamp_ms",
+  }),
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
     .notNull(),
@@ -116,6 +123,82 @@ export const savedSearch = sqliteTable(
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
   },
   (table) => [index("saved_search_userId_idx").on(table.userId)],
+);
+
+export const digestTrendSnapshot = sqliteTable(
+  "digest_trend_snapshot",
+  {
+    id: text("id").primaryKey(),
+    searchKey: text("search_key").notNull(),
+    weekStart: integer("week_start", { mode: "timestamp_ms" }).notNull(),
+    issueCount: integer("issue_count").notNull(),
+    topRepository: text("top_repository"),
+    topRepositoryIssueCount: integer("top_repository_issue_count")
+      .default(0)
+      .notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("digest_trend_snapshot_search_week_uidx").on(
+      table.searchKey,
+      table.weekStart,
+    ),
+  ],
+);
+
+export const repositoryDigestTemplate = sqliteTable(
+  "repository_digest_template",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .unique()
+      .references(() => user.id, { onDelete: "cascade" }),
+    name: text("name").default("Repository alerts").notNull(),
+    enabled: integer("enabled", { mode: "boolean" }).default(true).notNull(),
+    frequency: text("frequency", {
+      enum: ["daily", "weekly", "fortnightly"],
+    })
+      .default("weekly")
+      .notNull(),
+    lastSentAt: integer("last_sent_at", { mode: "timestamp_ms" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("repository_digest_template_user_id_uidx").on(table.userId),
+  ],
+);
+
+export const repositoryDigestRepository = sqliteTable(
+  "repository_digest_repository",
+  {
+    id: text("id").primaryKey(),
+    templateId: text("template_id")
+      .notNull()
+      .references(() => repositoryDigestTemplate.id, { onDelete: "cascade" }),
+    repositoryFullName: text("repository_full_name").notNull(),
+    repositoryUrl: text("repository_url").notNull(),
+    position: integer("position").notNull(),
+    lastIssueIds: text("last_issue_ids").default("[]").notNull(),
+  },
+  (table) => [
+    uniqueIndex("repository_digest_repository_template_repo_uidx").on(
+      table.templateId,
+      table.repositoryFullName,
+    ),
+    index("repository_digest_repository_template_position_idx").on(
+      table.templateId,
+      table.position,
+    ),
+  ],
 );
 
 export const userRelations = relations(user, ({ many }) => ({

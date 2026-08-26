@@ -11,6 +11,11 @@ const {
   replaceSavedSearches,
   syncSavedSearches,
   deleteCloudSavedSearch,
+  getDigestPreference,
+  getAlertEmail,
+  triggerWeeklyDigest,
+  updateDigestPreference,
+  updateAlertEmail,
   useSession,
 } = vi.hoisted(() => ({
   addSavedSearch: vi.fn(),
@@ -19,6 +24,11 @@ const {
   replaceSavedSearches: vi.fn(),
   syncSavedSearches: vi.fn(),
   deleteCloudSavedSearch: vi.fn(),
+  getDigestPreference: vi.fn(),
+  getAlertEmail: vi.fn(),
+  triggerWeeklyDigest: vi.fn(),
+  updateDigestPreference: vi.fn(),
+  updateAlertEmail: vi.fn(),
   useSession: vi.fn(),
 }));
 
@@ -32,6 +42,14 @@ vi.mock("@/features/issues/lib/saved-searches", () => ({
 vi.mock("@/features/issues/lib/saved-search-cloud", () => ({
   syncSavedSearches,
   deleteCloudSavedSearch,
+}));
+
+vi.mock("@/features/issues/lib/digest-preference-cloud", () => ({
+  getDigestPreference,
+  getAlertEmail,
+  triggerWeeklyDigest,
+  updateDigestPreference,
+  updateAlertEmail,
 }));
 
 vi.mock("@/lib/auth-client", () => ({
@@ -103,6 +121,11 @@ beforeEach(() => {
   replaceSavedSearches.mockReset();
   syncSavedSearches.mockReset().mockResolvedValue([]);
   deleteCloudSavedSearch.mockReset().mockResolvedValue(undefined);
+  getDigestPreference.mockReset().mockResolvedValue(false);
+  getAlertEmail.mockReset().mockResolvedValue("");
+  triggerWeeklyDigest.mockReset().mockResolvedValue(undefined);
+  updateDigestPreference.mockReset().mockResolvedValue(true);
+  updateAlertEmail.mockReset().mockResolvedValue("");
   useSession.mockReset().mockReturnValue({ data: null, isPending: false });
   vi.stubGlobal("fetch", vi.fn());
 });
@@ -135,6 +158,82 @@ describe("IssueFinder", () => {
     expect(await screen.findByText("Cloud search")).toBeTruthy();
     expect(syncSavedSearches).toHaveBeenCalledWith([]);
     expect(replaceSavedSearches).toHaveBeenCalledWith([saved]);
+  });
+
+  it("loads and updates the weekly digest preference", async () => {
+    useSession.mockReturnValue({
+      data: { user: { id: "user-1", name: "Octo Cat" } },
+      isPending: false,
+    });
+    getDigestPreference.mockResolvedValue(false);
+
+    render(<IssueFinder />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Enable weekly digest" }),
+    );
+
+    await waitFor(() => expect(updateDigestPreference).toHaveBeenCalledWith(true));
+    expect(screen.getByRole("button", { name: "Disable weekly digest" })).toBeTruthy();
+  });
+
+  it("loads, saves, and clears the alternate alert email", async () => {
+    useSession.mockReturnValue({
+      data: {
+        user: {
+          id: "user-1",
+          name: "Octo Cat",
+          email: "github@example.com",
+        },
+      },
+      isPending: false,
+    });
+    getAlertEmail.mockResolvedValue("alerts@example.com");
+    updateAlertEmail
+      .mockResolvedValueOnce("next@example.com")
+      .mockResolvedValueOnce("");
+
+    render(<IssueFinder />);
+    const input = await screen.findByLabelText("Alternate alert email");
+    expect((input as HTMLInputElement).value).toBe("alerts@example.com");
+
+    fireEvent.change(input, { target: { value: "next@example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save alert email" }));
+    expect(
+      await screen.findByText("Alerts will be sent to next@example.com."),
+    ).toBeTruthy();
+
+    fireEvent.change(input, { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save alert email" }));
+    expect(
+      await screen.findByText("Alerts will use your GitHub-linked email."),
+    ).toBeTruthy();
+  });
+
+  it("manually sends a digest for an authenticated saved search", async () => {
+    const saved = {
+      id: "saved-1",
+      name: "React docs",
+      tech: "React",
+      label: "documentation",
+      sort: "updated",
+      linkedPr: "any",
+      hacktoberfest: "any",
+      createdAt: "2026-08-19T00:00:00.000Z",
+    };
+    useSession.mockReturnValue({
+      data: { user: { id: "user-1", name: "Octo Cat" } },
+      isPending: false,
+    });
+    getSavedSearches.mockReturnValue([saved]);
+    syncSavedSearches.mockResolvedValue([saved]);
+
+    render(<IssueFinder />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Send digest now" }),
+    );
+
+    await waitFor(() => expect(triggerWeeklyDigest).toHaveBeenCalledOnce());
+    expect(await screen.findByText("Weekly digest sent. Check your inbox.")).toBeTruthy();
   });
 
   it("validates and manages saved searches", async () => {

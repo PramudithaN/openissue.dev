@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import { Bookmark, Search, Trash2 } from "lucide-react";
+import { Bookmark, Mail, Search, Trash2 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AuthControls } from "@/components/auth-controls";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +18,13 @@ import {
   deleteCloudSavedSearch,
   syncSavedSearches,
 } from "@/features/issues/lib/saved-search-cloud";
+import {
+  getDigestPreference,
+  getAlertEmail,
+  triggerWeeklyDigest,
+  updateAlertEmail,
+  updateDigestPreference,
+} from "@/features/issues/lib/digest-preference-cloud";
 import {
   Card,
   CardContent,
@@ -36,6 +43,7 @@ import {
 import { IssueCard } from "@/features/issues/components/issue-card";
 import { LoadingResults } from "@/features/issues/components/loading-results";
 import { Metric } from "@/features/issues/components/metric";
+import { RepositoryDigestCard } from "@/features/issues/components/repository-digest-card";
 import {
   HACKTOBERFEST_OPTIONS,
   LABEL_OPTIONS,
@@ -47,6 +55,126 @@ import { compactNumber } from "@/features/issues/lib/format";
 import { mergeRankedIssues, rankIssues } from "@/features/issues/lib/ranking";
 import type { SearchResponse, Issue } from "@/features/issues/types/search";
 import { authClient } from "@/lib/auth-client";
+
+function DigestControls({
+  linkedEmail,
+  alertEmail,
+  digestEnabled,
+  digestStatus,
+  isPending,
+  onAlertEmailChange,
+  onPreferenceChange,
+  onSaveAlertEmail,
+  onTrigger,
+}: Readonly<{
+  linkedEmail?: string | null;
+  alertEmail: string;
+  digestEnabled: boolean;
+  digestStatus: string | null;
+  isPending: boolean;
+  onAlertEmailChange: (value: string) => void;
+  onPreferenceChange: () => void;
+  onSaveAlertEmail: () => void;
+  onTrigger: () => void;
+}>) {
+  return (
+    <div className="rounded-md border p-3">
+      <p className="mb-2 text-xs text-muted-foreground">
+        Get recommended issues from your saved searches every Monday.
+      </p>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="w-full gap-2"
+        disabled={isPending}
+        onClick={onPreferenceChange}
+      >
+        <Mail className="h-4 w-4" />
+        {digestEnabled ? "Disable weekly digest" : "Enable weekly digest"}
+      </Button>
+      <div className="mt-2 space-y-2">
+        <Input
+          type="email"
+          value={alertEmail}
+          onChange={(event) => onAlertEmailChange(event.target.value)}
+          placeholder={linkedEmail ?? "Alternate alert email"}
+          aria-label="Alternate alert email"
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="w-full"
+          disabled={isPending}
+          onClick={onSaveAlertEmail}
+        >
+          Save alert email
+        </Button>
+        <p className="text-xs text-muted-foreground">
+          Leave blank to use your GitHub-linked email for all alerts.
+        </p>
+      </div>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="mt-2 w-full gap-2"
+        disabled={isPending}
+        onClick={onTrigger}
+      >
+        <Mail className="h-4 w-4" />
+        Send digest now
+      </Button>
+      {digestStatus ? (
+        <p className="mt-2 text-xs text-muted-foreground">{digestStatus}</p>
+      ) : null}
+    </div>
+  );
+}
+
+function SearchSummary({
+  error,
+  data,
+}: Readonly<{ error: string | null; data: SearchResponse | null }>) {
+  return (
+    <>
+      {error ? (
+        <Card className="border-destructive/40">
+          <CardHeader>
+            <CardTitle className="text-base text-destructive">Search failed</CardTitle>
+            <CardDescription>{error}</CardDescription>
+          </CardHeader>
+        </Card>
+      ) : null}
+      {data ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-semibold">Ranked issues</h2>
+            <p className="text-sm text-muted-foreground">{data.query}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Badge variant="secondary">
+              {compactNumber(data.candidateCount)} ranked candidates
+            </Badge>
+            <Badge variant="outline">
+              {compactNumber(data.totalCount)} raw GitHub matches
+            </Badge>
+          </div>
+        </div>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Ready when you are</CardTitle>
+            <CardDescription>
+              Run a search to pull live issue data from GitHub.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      )}
+    </>
+  );
+}
 
 export function IssueFinder() {
   const { data: session, isPending: isSessionPending } = authClient.useSession();
@@ -65,11 +193,39 @@ export function IssueFinder() {
 
   const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([]);
   const [savedSearchName, setSavedSearchName] = useState("");
+  const [digestEnabled, setDigestEnabled] = useState(false);
+  const [isDigestPending, setIsDigestPending] = useState(false);
+  const [digestStatus, setDigestStatus] = useState<string | null>(null);
+  const [alertEmail, setAlertEmail] = useState("");
 
   useEffect(() => {
     // Hydration must start with the server's empty snapshot before reading browser storage.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSavedSearches(getSavedSearches());
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const linkedSearch = {
+      tech: params.get("tech")?.trim() ?? "",
+      label: params.get("label") ?? "help-wanted",
+      sort: params.get("sort") ?? "updated",
+      linkedPr: params.get("linkedPr") ?? "any",
+      hacktoberfest: params.get("hacktoberfest") ?? "any",
+    };
+
+    if (!linkedSearch.tech) return;
+
+    // Hydration must use the server defaults before applying URL filters.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setTech(linkedSearch.tech);
+    setLabel(linkedSearch.label);
+    setSort(linkedSearch.sort);
+    setLinkedPr(linkedSearch.linkedPr);
+    setHacktoberfest(linkedSearch.hacktoberfest);
+    void searchIssues(undefined, linkedSearch);
+    // The URL is an initial navigation input, not reactive component state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -91,6 +247,27 @@ export function IssueFinder() {
     }
 
     void syncWithAccount();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isSessionPending, session?.user.id]);
+
+  useEffect(() => {
+    if (isSessionPending || !session?.user.id) return;
+
+    let cancelled = false;
+
+    void Promise.all([getDigestPreference(), getAlertEmail()])
+      .then(([enabled, savedAlertEmail]) => {
+        if (!cancelled) {
+          setDigestEnabled(enabled);
+          setAlertEmail(savedAlertEmail);
+        }
+      })
+      .catch(() => {
+        // Saved searches remain usable if the preference cannot be loaded.
+      });
 
     return () => {
       cancelled = true;
@@ -202,6 +379,67 @@ export function IssueFinder() {
       linkedPr: savedSearch.linkedPr,
       hacktoberfest: savedSearch.hacktoberfest,
     });
+  }
+
+  async function handleDigestPreference() {
+    setIsDigestPending(true);
+
+    try {
+      const enabled = await updateDigestPreference(!digestEnabled);
+      setDigestEnabled(enabled);
+      setError(null);
+    } catch (preferenceError) {
+      setError(
+        preferenceError instanceof Error
+          ? preferenceError.message
+          : "Unable to update the weekly digest preference.",
+      );
+    } finally {
+      setIsDigestPending(false);
+    }
+  }
+
+  async function handleDigestTrigger() {
+    setIsDigestPending(true);
+    setDigestStatus(null);
+
+    try {
+      await triggerWeeklyDigest();
+      setDigestStatus("Weekly digest sent. Check your inbox.");
+      setError(null);
+    } catch (triggerError) {
+      setError(
+        triggerError instanceof Error
+          ? triggerError.message
+          : "Unable to send the weekly digest.",
+      );
+    } finally {
+      setIsDigestPending(false);
+    }
+  }
+
+  async function handleAlertEmail() {
+    setIsDigestPending(true);
+    setDigestStatus(null);
+
+    try {
+      const savedAlertEmail = await updateAlertEmail(alertEmail);
+      setAlertEmail(savedAlertEmail);
+      setDigestStatus(
+        savedAlertEmail
+          ? `Alerts will be sent to ${savedAlertEmail}.`
+          : "Alerts will use your GitHub-linked email.",
+      );
+      setError(null);
+    } catch (alertEmailError) {
+      setError(
+        alertEmailError instanceof Error
+          ? alertEmailError.message
+          : "Unable to update the alert email.",
+      );
+    } finally {
+      setIsDigestPending(false);
+    }
   }
 
   async function searchIssues(
@@ -545,6 +783,20 @@ export function IssueFinder() {
                 </Button>
               </div>
 
+              {session?.user.id ? (
+                <DigestControls
+                  linkedEmail={session.user.email}
+                  alertEmail={alertEmail}
+                  digestEnabled={digestEnabled}
+                  digestStatus={digestStatus}
+                  isPending={isDigestPending}
+                  onAlertEmailChange={setAlertEmail}
+                  onPreferenceChange={() => void handleDigestPreference()}
+                  onSaveAlertEmail={() => void handleAlertEmail()}
+                  onTrigger={() => void handleDigestTrigger()}
+                />
+              ) : null}
+
               {savedSearches.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   No saved searches yet.
@@ -592,45 +844,11 @@ export function IssueFinder() {
               )}
             </CardContent>
           </Card>
+          {session?.user.id ? <RepositoryDigestCard /> : null}
         </aside>
 
         <div className="space-y-4">
-          {error ? (
-            <Card className="border-destructive/40">
-              <CardHeader>
-                <CardTitle className="text-base text-destructive">
-                  Search failed
-                </CardTitle>
-                <CardDescription>{error}</CardDescription>
-              </CardHeader>
-            </Card>
-          ) : null}
-
-          {data ? (
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="text-xl font-semibold">Ranked issues</h2>
-                <p className="text-sm text-muted-foreground">{data.query}</p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Badge variant="secondary">
-                  {compactNumber(data.candidateCount)} ranked candidates
-                </Badge>
-                <Badge variant="outline">
-                  {compactNumber(data.totalCount)} raw GitHub matches
-                </Badge>
-              </div>
-            </div>
-          ) : (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Ready when you are</CardTitle>
-                <CardDescription>
-                  Run a search to pull live issue data from GitHub.
-                </CardDescription>
-              </CardHeader>
-            </Card>
-          )}
+          <SearchSummary error={error} data={data} />
 
           {isLoading ? <LoadingResults /> : null}
 

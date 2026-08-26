@@ -30,6 +30,7 @@ The test suite uses Vitest. Coverage thresholds are configured in `vitest.config
 | `src/features/issues/` | Issue-search UI, ranking, persistence, types, and GitHub integration |
 | `src/lib/` | Authentication, database client, and database schema |
 | `db/migrations/` | Ordered Turso SQL migrations |
+| `src/app/api/cron/` | Protected scheduled jobs |
 | `tests/` | Unit, component, and route-handler tests |
 
 ## Database changes

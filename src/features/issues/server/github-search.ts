@@ -16,6 +16,8 @@ import type {
   Issue,
   IssueStatus,
   SearchResponse,
+  RepositoryDigestIssue,
+  RepositorySuggestion,
 } from "@/features/issues/types/search";
 
 const PAGE_SIZE = 24;
@@ -86,6 +88,14 @@ function buildLinkedPrQualifier(linkedPr: string) {
   }
 
   return null;
+}
+
+function buildUpdatedQualifier(updatedAfter?: string, updatedBefore?: string) {
+  if (!updatedAfter) return null;
+  const range = updatedBefore
+    ? `${updatedAfter}..${updatedBefore}`
+    : `>=${updatedAfter}`;
+  return `updated:${range}`;
 }
 
 function getRepoFullName(repositoryUrl: string) {
@@ -221,12 +231,68 @@ async function githubFetch<T>(url: string, token?: string, revalidate = 60) {
   };
 }
 
+export async function searchGitHubRepositories(
+  query: string,
+): Promise<RepositorySuggestion[]> {
+  const url = new URL("https://api.github.com/search/repositories");
+  url.searchParams.set("q", `${query.trim()} in:name,description archived:false`);
+  url.searchParams.set("sort", "stars");
+  url.searchParams.set("order", "desc");
+  url.searchParams.set("per_page", "8");
+  const result = await githubFetch<GitHubRepoSearchResponse>(
+    url.toString(),
+    process.env.GITHUB_TOKEN,
+    300,
+  );
+
+  return result.data.items.map((repository) => ({
+    fullName: repository.full_name,
+    url: repository.html_url,
+    description: repository.description ?? null,
+    stars: repository.stargazers_count,
+  }));
+}
+
+export async function getRecentRepositoryIssues(
+  repositoryFullName: string,
+): Promise<RepositoryDigestIssue[]> {
+  const url = new URL("https://api.github.com/search/issues");
+  url.searchParams.set(
+    "q",
+    `repo:${repositoryFullName} is:issue is:open`,
+  );
+  url.searchParams.set("sort", "created");
+  url.searchParams.set("order", "desc");
+  url.searchParams.set("per_page", "5");
+  const result = await githubFetch<GitHubSearchResponse>(
+    url.toString(),
+    process.env.GITHUB_TOKEN,
+    180,
+  );
+
+  return result.data.items.slice(0, 5).map((issue) => ({
+    id: issue.html_url,
+    title: issue.title,
+    url: issue.html_url,
+    summary: (issue.body ?? "No description provided.")
+      .replaceAll(/\s+/g, " ")
+      .trim()
+      .slice(0, 240),
+    labels: issue.labels.map((label) => label.name),
+    createdAt: issue.created_at,
+    comments: issue.comments,
+    assigned: Boolean(issue.assignee || issue.assignees?.length),
+  }));
+}
+
 export async function searchGitHubIssues({
   tech,
   label: rawLabel,
   sort: rawSort,
   linkedPr: rawLinkedPr,
   hacktoberfest: rawHacktoberfest,
+  updatedAfter,
+  updatedBefore,
   page = 1,
 }: {
   tech: string;
@@ -234,6 +300,8 @@ export async function searchGitHubIssues({
   sort: string | null;
   linkedPr: string | null;
   hacktoberfest?: string | null;
+  updatedAfter?: string;
+  updatedBefore?: string;
   page?: number;
 }): Promise<SearchResponse> {
   const label = GITHUB_LABELS[normalize(rawLabel)] ?? "help wanted";
@@ -272,12 +340,23 @@ export async function searchGitHubIssues({
 
   queryParts.push(`label:${quoteSearchValue(label)}`);
 
+  const updatedQualifier = buildUpdatedQualifier(updatedAfter, updatedBefore);
+
+  if (updatedQualifier) {
+    queryParts.push(updatedQualifier);
+  }
+
   if (linkedPrQualifier) {
     queryParts.push(linkedPrQualifier);
   }
 
   const displayQuery = repoTopicQuery
-    ? [repoTopicQuery, `label:${quoteSearchValue(label)}`, linkedPrQualifier]
+    ? [
+        repoTopicQuery,
+        `label:${quoteSearchValue(label)}`,
+        updatedQualifier,
+        linkedPrQualifier,
+      ]
         .filter(Boolean)
         .join(" ")
     : queryParts.join(" ");
