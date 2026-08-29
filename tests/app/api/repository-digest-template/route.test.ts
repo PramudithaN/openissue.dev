@@ -14,7 +14,7 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/lib/auth", () => ({ auth: { api: { getSession } } }));
 vi.mock("@/lib/db", () => ({ getDatabase: () => database }));
 
-import { GET, PUT } from "@/app/api/repository-digest-template/route";
+import { GET, PATCH, PUT } from "@/app/api/repository-digest-template/route";
 
 function limitedResult(result: unknown[]) {
   return { from: () => ({ where: () => ({ limit: async () => result }) }) };
@@ -41,6 +41,13 @@ describe("repository digest template API", () => {
       (
         await PUT(
           new Request("http://localhost", { method: "PUT", body: "{}" }),
+        )
+      ).status,
+    ).toBe(401);
+    expect(
+      (
+        await PATCH(
+          new Request("http://localhost", { method: "PATCH", body: "{}" }),
         )
       ).status,
     ).toBe(401);
@@ -80,6 +87,54 @@ describe("repository digest template API", () => {
     await expect((await GET(new Request("http://localhost"))).json()).resolves.toEqual({
       template: null,
     });
+  });
+
+  it("updates only the enabled status of an existing template", async () => {
+    database.select.mockReturnValueOnce(limitedResult([{ id: "template-1" }]));
+    const where = vi.fn().mockResolvedValue(undefined);
+    const set = vi.fn().mockReturnValue({ where });
+    database.update.mockReturnValue({ set });
+
+    const response = await PATCH(
+      new Request("http://localhost", {
+        method: "PATCH",
+        body: JSON.stringify({ enabled: false }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ enabled: false });
+    expect(set).toHaveBeenCalledWith(
+      expect.objectContaining({ enabled: false, updatedAt: expect.any(Date) }),
+    );
+    expect(database.insert).not.toHaveBeenCalled();
+    expect(database.delete).not.toHaveBeenCalled();
+  });
+
+  it("does not update alert status before a template exists", async () => {
+    database.select.mockReturnValueOnce(limitedResult([]));
+
+    const response = await PATCH(
+      new Request("http://localhost", {
+        method: "PATCH",
+        body: JSON.stringify({ enabled: false }),
+      }),
+    );
+
+    expect(response.status).toBe(404);
+    expect(database.update).not.toHaveBeenCalled();
+  });
+
+  it("rejects a null alert status body", async () => {
+    const response = await PATCH(
+      new Request("http://localhost", {
+        method: "PATCH",
+        body: "null",
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(database.select).not.toHaveBeenCalled();
   });
 
   it("rejects malformed and duplicate repository selections", async () => {

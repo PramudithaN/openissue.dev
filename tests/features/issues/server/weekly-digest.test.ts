@@ -64,6 +64,7 @@ function response(): SearchResponse {
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.restoreAllMocks();
+  vi.clearAllMocks();
 });
 
 describe("weekly digest", () => {
@@ -229,8 +230,38 @@ describe("weekly digest", () => {
       from: "OpenIssue.dev <openissue.project@gmail.com>",
       to: "user@example.com",
       subject: "Digest",
-      html: "<p>Hi</p>",
+      html: expect.stringContaining(
+        "add <strong style=\"color:#9ca3af;\">openissue.project@gmail.com</strong> to your address book",
+      ),
+      text: expect.stringMatching(
+        /add\s+openissue\.project@gmail\.com to your address book/,
+      ),
+      envelope: {
+        from: "openissue.project@gmail.com",
+        to: "user@example.com",
+      },
+      headers: {
+        "Auto-Submitted": "auto-generated",
+        "X-Auto-Response-Suppress": "All",
+      },
     });
+  });
+
+  it("rejects a From address that differs from the authenticated Gmail account", async () => {
+    vi.stubEnv("SMTP_USER", "openissue.project@gmail.com");
+    vi.stubEnv("SMTP_APP_PASSWORD", "app-password");
+    vi.stubEnv("DIGEST_FROM_EMAIL", "OpenIssue.dev <alerts@example.com>");
+
+    await expect(
+      sendWeeklyDigest({
+        to: "recipient@example.com",
+        subject: "Digest",
+        html: "<p>Digest</p>",
+      }),
+    ).rejects.toThrow(
+      "Digest sender must match the authenticated Gmail account.",
+    );
+    expect(createTransport).not.toHaveBeenCalled();
   });
 
   it.each([

@@ -22,6 +22,7 @@ import {
   getRepositoryDigestTemplate,
   saveRepositoryDigestTemplate,
   searchRepositories,
+  updateRepositoryDigestTemplateEnabled,
   type RepositoryDigestTemplate,
 } from "@/features/issues/lib/repository-digest-cloud";
 import type { RepositorySuggestion } from "@/features/issues/types/search";
@@ -38,16 +39,24 @@ export function RepositoryDigestCard() {
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<RepositorySuggestion[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingTemplate, setIsLoadingTemplate] = useState(true);
+  const [hasSavedTemplate, setHasSavedTemplate] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     void getRepositoryDigestTemplate()
       .then((saved) => {
-        if (!cancelled && saved) setTemplate(saved);
+        if (!cancelled && saved) {
+          setTemplate(saved);
+          setHasSavedTemplate(true);
+        }
       })
       .catch(() => {
         if (!cancelled) setMessage("Unable to load repository alerts.");
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingTemplate(false);
       });
     return () => {
       cancelled = true;
@@ -106,8 +115,40 @@ export function RepositoryDigestCard() {
     setMessage(null);
     try {
       setTemplate(await saveRepositoryDigestTemplate(template));
+      setHasSavedTemplate(true);
       setMessage("Repository alert template saved.");
     } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to save template.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function toggleAlerts() {
+    const previousTemplate = template;
+    const updatedTemplate = { ...template, enabled: !template.enabled };
+    setTemplate(updatedTemplate);
+    if (!hasSavedTemplate) {
+      setMessage(null);
+      return;
+    }
+    setIsSaving(true);
+    setMessage(null);
+    try {
+      const enabled = await updateRepositoryDigestTemplateEnabled(
+        updatedTemplate.enabled,
+      );
+      setTemplate((current) => ({ ...current, enabled }));
+      setMessage(
+        updatedTemplate.enabled
+          ? "Repository alerts enabled."
+          : "Repository alerts disabled.",
+      );
+    } catch (error) {
+      setTemplate((current) => ({
+        ...current,
+        enabled: previousTemplate.enabled,
+      }));
       setMessage(error instanceof Error ? error.message : "Unable to save template.");
     } finally {
       setIsSaving(false);
@@ -223,9 +264,8 @@ export function RepositoryDigestCard() {
           variant="outline"
           size="sm"
           className="w-full gap-2"
-          onClick={() =>
-            setTemplate((current) => ({ ...current, enabled: !current.enabled }))
-          }
+          disabled={isSaving || isLoadingTemplate}
+          onClick={() => void toggleAlerts()}
         >
           <Mail className="h-4 w-4" />
           {template.enabled ? "Disable repository alerts" : "Enable repository alerts"}

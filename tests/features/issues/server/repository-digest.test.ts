@@ -69,4 +69,33 @@ describe("buildRepositoryDigest", () => {
 
     expect(digest.changed).toBe(false);
   });
+
+  it("renders all five issues for each repository", async () => {
+    mockedGetIssues.mockResolvedValue(
+      Array.from({ length: 5 }, (_, index) => ({
+        id: `issue-${index + 1}`,
+        title: `Issue ${index + 1}`,
+        url: `https://github.com/acme/widgets/issues/${index + 1}`,
+        summary: `Details ${index + 1}`,
+        labels: ["help wanted"],
+        createdAt: "2026-08-24T10:00:00Z",
+        comments: index,
+        assigned: false,
+      })),
+    );
+
+    const digest = await buildRepositoryDigest([
+      {
+        id: "selection-1",
+        fullName: "acme/widgets",
+        url: "https://github.com/acme/widgets",
+        lastIssueIds: "[]",
+      },
+    ]);
+
+    expect(digest.issueCount).toBe(5);
+    expect(digest.repositoryCount).toBe(1);
+    expect(digest.html.match(/class="issue-title-mobile"/g)).toHaveLength(5);
+    expect(digest.html).not.toContain("more issues");
+  });
 });

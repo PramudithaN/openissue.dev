@@ -85,6 +85,7 @@ describe("digest delivery", () => {
     buildRepositoryDigest.mockResolvedValue({
       changed: true,
       issueCount: 1,
+      repositoryCount: 1,
       html: "<p>Repositories</p>",
       snapshots: [{ id: "repo-row", issueIds: '["issue-1"]' }],
     });
@@ -132,6 +133,7 @@ describe("digest delivery", () => {
     buildRepositoryDigest.mockResolvedValueOnce({
       changed: false,
       issueCount: 1,
+      repositoryCount: 1,
       html: "<p>Repositories</p>",
       snapshots: [],
     });
@@ -188,12 +190,17 @@ describe("digest delivery", () => {
       ),
     ).resolves.toBe(true);
 
-    expect(sendWeeklyDigest).toHaveBeenCalledWith(
-      expect.objectContaining({
-        to: "alerts@example.com",
-        html: "<p>Saved searches</p><p>Repositories</p>",
-      }),
+    const combinedEmail = sendWeeklyDigest.mock.calls[0][0];
+    expect(combinedEmail.to).toBe("alerts@example.com");
+    expect(combinedEmail.html).toContain(
+      'src="https://example.com/openissue-logo.png"',
     );
+    expect(combinedEmail.html).toContain(
+      'class="email-container" width="95%"',
+    );
+    expect(combinedEmail.html).not.toContain("width:600px;max-width:600px");
+    expect(combinedEmail.html).toContain("<p>Saved searches</p>");
+    expect(combinedEmail.html).toContain("<p>Repositories</p>");
     expect(database.updateSet).toHaveBeenCalledWith({
       lastIssueIds: '["issue-1"]',
     });
@@ -261,7 +268,7 @@ describe("digest delivery", () => {
     expect(sendWeeklyDigest).toHaveBeenCalledWith(
       expect.objectContaining({
         subject: "1 open-source issues for you this week",
-        html: "<p>Repositories</p>",
+        html: expect.stringContaining("<p>Repositories</p>"),
       }),
     );
     expect(database.updateSet).not.toHaveBeenCalledWith(
