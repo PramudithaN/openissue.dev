@@ -58,6 +58,43 @@ export async function GET(request: Request) {
   return Response.json({ template: await getTemplate(session.user.id) });
 }
 
+export async function PATCH(request: Request) {
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session) return Response.json({ error: "Unauthorized." }, { status: 401 });
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return Response.json({ error: "Invalid request body." }, { status: 400 });
+  }
+
+  const enabled =
+    body && typeof body === "object"
+      ? (body as { enabled?: unknown }).enabled
+      : undefined;
+  if (typeof enabled !== "boolean") {
+    return Response.json({ error: "Invalid repository alert status." }, { status: 400 });
+  }
+
+  const database = getDatabase();
+  const [existingRow] = await database
+    .select({ id: repositoryDigestTemplate.id })
+    .from(repositoryDigestTemplate)
+    .where(eq(repositoryDigestTemplate.userId, session.user.id))
+    .limit(1);
+  if (!existingRow) {
+    return Response.json({ error: "Repository alert template not found." }, { status: 404 });
+  }
+
+  await database
+    .update(repositoryDigestTemplate)
+    .set({ enabled, updatedAt: new Date() })
+    .where(eq(repositoryDigestTemplate.id, existingRow.id));
+
+  return Response.json({ enabled });
+}
+
 export async function PUT(request: Request) {
   const session = await auth.api.getSession({ headers: request.headers });
   if (!session) return Response.json({ error: "Unauthorized." }, { status: 401 });

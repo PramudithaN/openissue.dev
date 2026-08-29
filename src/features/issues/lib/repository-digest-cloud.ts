@@ -33,6 +33,17 @@ export async function saveRepositoryDigestTemplate(
   return payload.template;
 }
 
+export async function updateRepositoryDigestTemplateEnabled(enabled: boolean) {
+  const payload = await jsonResponse<{ enabled: boolean }>(
+    await fetch("/api/repository-digest-template", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled }),
+    }),
+  );
+  return payload.enabled;
+}
+
 export async function searchRepositories(query: string) {
   const params = new URLSearchParams({ query });
   const payload = await jsonResponse<{ repositories: RepositorySuggestion[] }>(

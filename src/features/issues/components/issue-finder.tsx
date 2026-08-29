@@ -44,6 +44,7 @@ import { IssueCard } from "@/features/issues/components/issue-card";
 import { LoadingResults } from "@/features/issues/components/loading-results";
 import { Metric } from "@/features/issues/components/metric";
 import { RepositoryDigestCard } from "@/features/issues/components/repository-digest-card";
+import { AdminEmailCard } from "@/features/issues/components/admin-email-card";
 import {
   HACKTOBERFEST_OPTIONS,
   LABEL_OPTIONS,
@@ -845,6 +846,9 @@ export function IssueFinder() {
             </CardContent>
           </Card>
           {session?.user.id ? <RepositoryDigestCard /> : null}
+          {session?.user.id ? (
+            <AdminEmailCard defaultEmail={alertEmail || session.user.email} />
+          ) : null}
         </aside>
 
         <div className="space-y-4">

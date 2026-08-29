@@ -7,10 +7,12 @@ const {
   getRepositoryDigestTemplate,
   saveRepositoryDigestTemplate,
   searchRepositories,
+  updateRepositoryDigestTemplateEnabled,
 } = vi.hoisted(() => ({
   getRepositoryDigestTemplate: vi.fn(),
   saveRepositoryDigestTemplate: vi.fn(),
   searchRepositories: vi.fn(),
+  updateRepositoryDigestTemplateEnabled: vi.fn(),
 }));
 const selectControl = vi.hoisted(() => ({
   onValueChange: null as null | ((value: "daily") => void),
@@ -20,6 +22,7 @@ vi.mock("@/features/issues/lib/repository-digest-cloud", () => ({
   getRepositoryDigestTemplate,
   saveRepositoryDigestTemplate,
   searchRepositories,
+  updateRepositoryDigestTemplateEnabled,
 }));
 
 vi.mock("@/components/ui/select", () => ({
@@ -56,6 +59,7 @@ describe("RepositoryDigestCard", () => {
       },
     ]);
     saveRepositoryDigestTemplate.mockImplementation(async (template) => template);
+    updateRepositoryDigestTemplateEnabled.mockImplementation(async (enabled) => enabled);
   });
 
   afterEach(() => cleanup());
@@ -91,7 +95,7 @@ describe("RepositoryDigestCard", () => {
         }),
       ),
     );
-    expect(screen.getByText("Repository alert template saved.")).toBeTruthy();
+    expect(await screen.findByText("Repository alert template saved.")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Remove acme/repo" }));
     expect(screen.queryByRole("link", { name: "acme/repo" })).toBeNull();
@@ -118,6 +122,82 @@ describe("RepositoryDigestCard", () => {
     render(<RepositoryDigestCard />);
     fireEvent.click(screen.getByRole("button", { name: "Save template" }));
     expect(await screen.findByText("Save failed.")).toBeTruthy();
+  });
+
+  it("persists disabling an existing template without saving other edits", async () => {
+    getRepositoryDigestTemplate.mockResolvedValueOnce({
+      name: "Saved alerts",
+      enabled: true,
+      frequency: "weekly",
+      repositories: [],
+    });
+    render(<RepositoryDigestCard />);
+    expect(await screen.findByDisplayValue("Saved alerts")).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText("Repository alert template name"), {
+      target: { value: "" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Disable repository alerts" }));
+
+    await waitFor(() =>
+      expect(updateRepositoryDigestTemplateEnabled).toHaveBeenCalledWith(false),
+    );
+    expect(saveRepositoryDigestTemplate).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Repository alert template name")).toHaveProperty(
+      "value",
+      "",
+    );
+    expect(await screen.findByText("Repository alerts disabled.")).toBeTruthy();
+  });
+
+  it("waits for the template lookup before allowing alerts to toggle", async () => {
+    let resolveTemplate: ((value: null) => void) | undefined;
+    getRepositoryDigestTemplate.mockReturnValueOnce(
+      new Promise<null>((resolve) => {
+        resolveTemplate = resolve;
+      }),
+    );
+    render(<RepositoryDigestCard />);
+
+    expect(screen.getByRole("button", { name: "Disable repository alerts" })).toHaveProperty(
+      "disabled",
+      true,
+    );
+
+    await act(async () => resolveTemplate?.(null));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Disable repository alerts" }),
+      ).toHaveProperty("disabled", false),
+    );
+  });
+
+  it("preserves draft edits when persisting a toggle fails", async () => {
+    getRepositoryDigestTemplate.mockResolvedValueOnce({
+      name: "Saved alerts",
+      enabled: true,
+      frequency: "weekly",
+      repositories: [],
+    });
+    let rejectUpdate: ((reason: Error) => void) | undefined;
+    updateRepositoryDigestTemplateEnabled.mockReturnValueOnce(
+      new Promise<boolean>((_resolve, reject) => {
+        rejectUpdate = reject;
+      }),
+    );
+    render(<RepositoryDigestCard />);
+    expect(await screen.findByDisplayValue("Saved alerts")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Disable repository alerts" }));
+    fireEvent.change(screen.getByLabelText("Repository alert template name"), {
+      target: { value: "Draft name" },
+    });
+    await act(async () => rejectUpdate?.(new Error("Save failed.")));
+
+    expect(await screen.findByText("Save failed.")).toBeTruthy();
+    expect(screen.getByDisplayValue("Draft name")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Disable repository alerts" })).toBeTruthy();
   });
 
   it("handles repository search failures", async () => {

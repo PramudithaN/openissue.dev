@@ -1,5 +1,6 @@
 import "server-only";
 
+import { convert } from "html-to-text";
 import nodemailer from "nodemailer";
 import type { Issue } from "@/features/issues/types/search";
 import type { SavedSearch } from "@/features/issues/lib/saved-searches";
@@ -43,6 +44,15 @@ function escapeHtml(value: string) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function addAddressBookNotice(html: string, senderAddress: string) {
+  const notice = `<p style="margin:20px auto;padding:0 2.5%;max-width:95%;font-size:12px;line-height:1.6;text-align:center;color:#6b7280;">To help prevent these alerts from being marked as spam, add <strong style="color:#9ca3af;">${escapeHtml(senderAddress)}</strong> to your address book.</p>`;
+  const bodyEnd = html.toLowerCase().lastIndexOf("</body>");
+
+  return bodyEnd < 0
+    ? `${html}${notice}`
+    : `${html.slice(0, bodyEnd)}${notice}${html.slice(bodyEnd)}`;
 }
 
 function searchUrl(baseUrl: string, search: SavedSearch) {
@@ -193,6 +203,22 @@ export async function sendWeeklyDigest({
     throw new Error("Weekly digest email is not configured.");
   }
 
+  const openingBracket = from.lastIndexOf("<");
+  const closingBracket = from.lastIndexOf(">");
+  const fromAddress = (
+    openingBracket >= 0 && closingBracket > openingBracket
+      ? from.slice(openingBracket + 1, closingBracket)
+      : from
+  )
+    .trim()
+    .toLowerCase();
+
+  if (fromAddress !== user.trim().toLowerCase()) {
+    throw new Error("Digest sender must match the authenticated Gmail account.");
+  }
+
+  const htmlWithNotice = addAddressBookNotice(html, fromAddress);
+
   const transport = nodemailer.createTransport({
     host: "smtp.gmail.com",
     port: 465,
@@ -203,5 +229,22 @@ export async function sendWeeklyDigest({
     },
   });
 
-  await transport.sendMail({ from, to, subject, html });
+  await transport.sendMail({
+    from,
+    to,
+    subject,
+    html: htmlWithNotice,
+    text: convert(htmlWithNotice, {
+      selectors: [
+        { selector: "img", format: "skip" },
+        { selector: "a", options: { hideLinkHrefIfSameAsText: true } },
+      ],
+      wordwrap: 78,
+    }),
+    envelope: { from: user, to },
+    headers: {
+      "Auto-Submitted": "auto-generated",
+      "X-Auto-Response-Suppress": "All",
+    },
+  });
 }
