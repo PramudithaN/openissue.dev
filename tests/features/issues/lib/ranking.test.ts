@@ -60,4 +60,13 @@ describe("issue ranking", () => {
     expect(mergedIssues).toHaveLength(3);
     expect(mergedIssues[1].qualityScore).toBe(75);
   });
+
+  it("ranks trending results by activity score", () => {
+    const rankedIssues = rankIssues([
+      issue({ id: "quality", qualityScore: 90, trendingScore: 40 }),
+      issue({ id: "trending", qualityScore: 50, trendingScore: 80 }),
+    ], "trending");
+
+    expect(rankedIssues.map((item) => item.id)).toEqual(["trending", "quality"]);
+  });
 });

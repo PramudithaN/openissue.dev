@@ -845,7 +845,7 @@ export function IssueFinder() {
       }
 
       setData(payload);
-      setIssues(rankIssues(payload.issues));
+      setIssues(rankIssues(payload.issues, searchSort));
     } catch (searchError) {
       setError(
         searchError instanceof Error
@@ -884,7 +884,7 @@ export function IssueFinder() {
         throw new Error(payload.error ?? "Failed to load more issues.");
       }
 
-      setIssues((prev) => mergeRankedIssues(prev, payload.issues));
+      setIssues((prev) => mergeRankedIssues(prev, payload.issues, sort));
       setPage(nextPage);
       setData(payload);
     } catch (searchError) {

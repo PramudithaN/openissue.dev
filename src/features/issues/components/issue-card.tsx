@@ -118,6 +118,27 @@ function QualityTooltip({ issue }: Readonly<{ issue: Issue }>) {
   );
 }
 
+function TrendingTooltip({ issue }: Readonly<{ issue: Issue }>) {
+  if (issue.trendingScore === undefined) return null;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Badge className="border-violet-500/20 bg-violet-500/10 text-violet-700 dark:text-violet-400" tabIndex={0}>
+          {issue.trendingScore} trending
+        </Badge>
+      </TooltipTrigger>
+      <TooltipContent className="block max-w-sm space-y-2">
+        <p className="font-medium">Trending activity score</p>
+        <p>
+          Based on updates in the last 30 days, discussion, repository stars,
+          and repository health. Scores are not percentages.
+        </p>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 export function IssueCard({
   issue,
   isSaved = false,
@@ -152,6 +173,7 @@ export function IssueCard({
                   : "Hacktoberfest label"}
               </Badge>
             ) : null}
+            <TrendingTooltip issue={issue} />
             <QualityTooltip issue={issue} />
             {issue.helpStatus === "open" && (
               <Badge className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20">
