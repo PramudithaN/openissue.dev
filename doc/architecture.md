@@ -48,6 +48,10 @@ flowchart LR
   UI -->|Save or open an issue| OpportunityAPI
   OpportunityAPI --> BetterAuth
   OpportunityAPI --> Drizzle
+  UI -->|Load personalized recommendations| RecommendationAPI["GET /api/recommendations"]
+  RecommendationAPI --> BetterAuth
+  RecommendationAPI --> Drizzle
+  RecommendationAPI --> SearchService
 
   Local -->|Signed-in synchronization| SavedAPI
   SavedAPI -->|Validate session| BetterAuth
@@ -112,6 +116,17 @@ still fetched live and is never copied into the database.
 An authored issue is annotated when its canonical URL matches a saved or opened
 opportunity. Pull requests are not matched by number alone because GitHub issue
 and pull-request numbers can collide without representing related work.
+
+## Personalized recommendations
+
+Authenticated users select one saved search from their complete saved-search list as
+the active recommendation preference; the most recent search is selected initially. The service
+reuses the existing GitHub search and issue-quality ranking pipeline, deduplicates
+issues across preferences, and excludes issues the user has already saved or
+opened. Prior activity in the same repository contributes a small familiarity
+boost. Each result displays its matching technology, label, and repository signal
+so the ranking remains explainable. Saving or deleting a search directly changes
+the preferences used the next time recommendations are loaded.
 
 ## Data model
 

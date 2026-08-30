@@ -121,11 +121,13 @@ function QualityTooltip({ issue }: Readonly<{ issue: Issue }>) {
 export function IssueCard({
   issue,
   isSaved = false,
+  matchSignals = [],
   onOpen,
   onSaveChange,
 }: Readonly<{
   issue: Issue;
   isSaved?: boolean;
+  matchSignals?: string[];
   onOpen?: (issue: Issue) => void;
   onSaveChange?: (issue: Issue, saved: boolean) => void;
 }>) {
@@ -175,6 +177,15 @@ export function IssueCard({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        {matchSignals.length > 0 ? (
+          <div className="flex flex-wrap gap-2" aria-label="Recommendation matches">
+            {matchSignals.map((signal) => (
+              <Badge key={signal} variant="secondary">
+                {signal}
+              </Badge>
+            ))}
+          </div>
+        ) : null}
         <div className="flex flex-wrap gap-2">
           {issue.labels.slice(0, 6).map((label) => (
             <Badge key={label} variant="outline">

@@ -31,6 +31,7 @@ const {
   useSession,
   getOpportunities,
   updateOpportunity,
+  getRecommendations,
 } = vi.hoisted(() => ({
   addSavedSearch: vi.fn(),
   deleteSavedSearch: vi.fn(),
@@ -46,6 +47,7 @@ const {
   useSession: vi.fn(),
   getOpportunities: vi.fn(),
   updateOpportunity: vi.fn(),
+  getRecommendations: vi.fn(),
 }));
 
 vi.mock("@/features/issues/lib/saved-searches", () => ({
@@ -71,6 +73,10 @@ vi.mock("@/features/issues/lib/digest-preference-cloud", () => ({
 vi.mock("@/features/issues/lib/opportunity-cloud", () => ({
   getOpportunities,
   updateOpportunity,
+}));
+
+vi.mock("@/features/issues/lib/recommendation-cloud", () => ({
+  getRecommendations,
 }));
 
 vi.mock("@/lib/auth-client", () => ({
@@ -155,6 +161,10 @@ beforeEach(() => {
   useSession.mockReset().mockReturnValue({ data: null, isPending: false });
   getOpportunities.mockReset().mockResolvedValue([]);
   updateOpportunity.mockReset().mockResolvedValue(null);
+  getRecommendations.mockReset().mockResolvedValue({
+    recommendations: [],
+    preferenceCount: 0,
+  });
   vi.stubGlobal("fetch", vi.fn());
 });
 
@@ -186,6 +196,57 @@ describe("IssueFinder", () => {
         "aria-selected",
       ),
     ).toBe("true");
+  });
+
+  it("loads explainable recommendations for an authenticated user", async () => {
+    const searches = [
+      {
+        id: "search-1",
+        name: "React help",
+        tech: "React",
+        label: "help-wanted",
+        sort: "updated",
+        linkedPr: "any",
+        hacktoberfest: "any",
+        createdAt: "2026-08-28T00:00:00.000Z",
+      },
+      {
+        id: "search-2",
+        name: "Rust bugs",
+        tech: "Rust",
+        label: "bug",
+        sort: "updated",
+        linkedPr: "any",
+        hacktoberfest: "any",
+        createdAt: "2026-08-29T00:00:00.000Z",
+      },
+    ];
+    useSession.mockReturnValue({
+      data: { user: { id: "user-1", name: "Octo Cat" } },
+      isPending: false,
+    });
+    getSavedSearches.mockReturnValue([]);
+    syncSavedSearches.mockResolvedValue(searches);
+    getRecommendations.mockResolvedValue({
+      preferenceCount: 1,
+      recommendations: [
+        {
+          issue: issue(1),
+          recommendationScore: 74,
+          matchSignals: ["Technology: React", "Label: help-wanted"],
+        },
+      ],
+    });
+
+    render(<IssueFinder />);
+    fireEvent.click(screen.getByRole("tab", { name: "Recommended for you" }));
+
+    expect(await screen.findByText("Issue 1")).toBeTruthy();
+    expect(screen.getByText("Technology: React")).toBeTruthy();
+    expect(screen.getByText("Label: help-wanted")).toBeTruthy();
+    expect(screen.getByText("React help · React · help-wanted")).toBeTruthy();
+    expect(screen.getByText("Rust bugs · Rust · bug")).toBeTruthy();
+    expect(getRecommendations).toHaveBeenCalledWith("search-2");
   });
 
   it("restores and caches account searches after sign-in", async () => {
