@@ -133,6 +133,8 @@ export type RepositoryDigestIssue = {
   createdAt: string;
   comments: number;
   assigned: boolean;
+  qualityScore: number;
+  repositoryHealth: RepositoryHealth;
 };
 
 export type GitHubTimelineEvent = {

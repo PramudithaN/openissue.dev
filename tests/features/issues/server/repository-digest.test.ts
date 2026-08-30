@@ -14,6 +14,11 @@ import { buildRepositoryDigest } from "@/features/issues/server/repository-diges
 
 const mockedGetIssues = vi.mocked(getRecentRepositoryIssues);
 const mockedGetResponsiveness = vi.mocked(getRepositoryResponsiveness);
+const repositoryHealth = {
+  score: 80,
+  label: "active" as const,
+  signals: ["Pushed within 30 days"],
+};
 
 describe("buildRepositoryDigest", () => {
   beforeEach(() => {
@@ -37,6 +42,8 @@ describe("buildRepositoryDigest", () => {
         createdAt: "2026-08-24T10:00:00Z",
         comments: 2,
         assigned: false,
+        qualityScore: 75,
+        repositoryHealth,
       },
     ]);
 
@@ -55,6 +62,8 @@ describe("buildRepositoryDigest", () => {
     expect(digest.html).toContain("Escape &lt;this&gt;");
     expect(digest.html).toContain("Useful &amp; concise details");
     expect(digest.html).toContain("unassigned");
+    expect(digest.html).toContain("80 quality");
+    expect(digest.html).toContain("80 active health");
     expect(digest.html).toContain("Responsive maintainer responsiveness");
     expect(digest.html).toContain("6 samples over 90 days");
     expect(digest.html).toContain("Median first maintainer response: 1 day");
@@ -71,6 +80,8 @@ describe("buildRepositoryDigest", () => {
         createdAt: "2026-08-24T10:00:00Z",
         comments: 0,
         assigned: true,
+        qualityScore: 75,
+        repositoryHealth,
       },
     ]);
 
@@ -120,6 +131,8 @@ describe("buildRepositoryDigest", () => {
         createdAt: "2026-08-24T10:00:00Z",
         comments: 0,
         assigned: false,
+        qualityScore: 75,
+        repositoryHealth,
       },
     ]);
     mockedGetResponsiveness.mockRejectedValue(new Error("GitHub unavailable"));
@@ -150,6 +163,8 @@ describe("buildRepositoryDigest", () => {
         createdAt: "2026-08-24T10:00:00Z",
         comments: index,
         assigned: false,
+        qualityScore: 75,
+        repositoryHealth,
       })),
     );
 

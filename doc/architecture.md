@@ -204,8 +204,12 @@ linked search on load. Weekly recommendations honor the saved responsiveness
 filter and show each repository's status and sample size. Repository-alert
 emails also show the cached responsiveness status, sample period, and
 contributing signals beside each repository. Weekly recommendations display the
-same quality score used to rank results in the portal. Repository alerts remain
-newest-issue notifications and do not assign portal search-quality scores.
+same quality and repository-health scores used to rank results in the portal.
+Repository alerts enrich their newest issues with repository health and the same
+quality formula before adding the repository responsiveness boost.
+Saved-search recommendations, repository alerts, repository metadata, and
+post-delivery persistence run concurrently where independent so SMTP delivery is
+not delayed by avoidable serial network or database round trips.
 
 Authenticated users can also request their own digest immediately from the
 saved-search card. The manual route uses the same delivery pipeline and six-day
