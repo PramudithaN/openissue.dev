@@ -28,6 +28,7 @@ export function getDigestSearchKey(search: SavedSearch) {
     experience: search.experience ?? "any",
     contributionType: search.contributionType ?? "any",
     scope: search.scope ?? "any",
+    responsiveness: search.responsiveness ?? "any",
   });
 }
 
@@ -68,6 +69,7 @@ function searchUrl(baseUrl: string, search: SavedSearch) {
   url.searchParams.set("experience", search.experience ?? "any");
   url.searchParams.set("contributionType", search.contributionType ?? "any");
   url.searchParams.set("scope", search.scope ?? "any");
+  url.searchParams.set("responsiveness", search.responsiveness ?? "any");
   return url.toString();
 }
 
@@ -110,6 +112,7 @@ export async function buildWeeklyDigest(
         experience: search.experience ?? "any",
         contributionType: search.contributionType ?? "any",
         scope: search.scope ?? "any",
+        responsiveness: search.responsiveness ?? "any",
         updatedAfter,
         updatedBefore,
       }),
@@ -163,8 +166,17 @@ export async function buildWeeklyDigest(
   const issueItems = issues.length
     ? issues
         .map(
-          (issue) =>
-            `<li><a href="${escapeHtml(issue.url)}">${escapeHtml(issue.title)}</a> in ${escapeHtml(issue.repo)}</li>`,
+          (issue) => {
+            const responsiveness = issue.repositoryResponsiveness;
+            const status = responsiveness
+              ? `${responsiveness.status[0].toUpperCase()}${responsiveness.status.slice(1)}`
+              : "Unknown";
+            const sample = responsiveness
+              ? `, ${responsiveness.sampleSize} samples over ${responsiveness.sampleDays} days`
+              : "";
+
+            return `<li><a href="${escapeHtml(issue.url)}">${escapeHtml(issue.title)}</a> in ${escapeHtml(issue.repo)} — ${issue.qualityScore} quality · ${escapeHtml(status)} maintainer responsiveness${escapeHtml(sample)}</li>`;
+          },
         )
         .join("")
     : "<li>No new matching issues this week.</li>";

@@ -22,9 +22,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { compactNumber, relativeDate } from "@/features/issues/lib/format";
+import { getResponsivenessBoost } from "@/features/issues/lib/repository-responsiveness";
 import type {
   Issue,
   RepositoryHealth,
+  RepositoryResponsiveness,
 } from "@/features/issues/types/search";
 
 function getQualityBadgeClassName(qualityScore: number) {
@@ -37,6 +39,19 @@ function getQualityBadgeClassName(qualityScore: number) {
   }
 
   return "bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20";
+}
+
+function getResponsivenessClassName(status: RepositoryResponsiveness["status"]) {
+  switch (status) {
+    case "responsive":
+      return "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400";
+    case "variable":
+      return "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-400";
+    case "slow":
+      return "border-rose-500/20 bg-rose-500/10 text-rose-700 dark:text-rose-400";
+    default:
+      return "";
+  }
 }
 
 function getRepositoryHealthClassName(label: RepositoryHealth["label"]) {
@@ -87,8 +102,50 @@ function RepositoryHealthTooltip({ issue }: Readonly<{ issue: Issue }>) {
   );
 }
 
+function ResponsivenessTooltip({ issue }: Readonly<{ issue: Issue }>) {
+  const responsiveness = issue.repositoryResponsiveness ?? {
+    status: "unknown" as const,
+    sampleDays: 90,
+    sampleSize: 0,
+    signals: ["Responsiveness sample unavailable"],
+  };
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Badge
+          variant="outline"
+          className={getResponsivenessClassName(responsiveness.status)}
+          tabIndex={0}
+          title={responsiveness.signals.join(" · ")}
+        >
+          <MessageCircle className="h-3 w-3" />
+          {responsiveness.status === "unknown"
+            ? "Response unknown"
+            : `${responsiveness.status} maintainers`}
+        </Badge>
+      </TooltipTrigger>
+      <TooltipContent className="block max-w-sm space-y-2">
+        <p className="font-medium">Maintainer responsiveness</p>
+        <p>
+          Based on {responsiveness.sampleSize} recent contribution samples from
+          the last {responsiveness.sampleDays} days.
+        </p>
+        <ul className="list-disc space-y-1 pl-4">
+          {responsiveness.signals.map((signal) => (
+            <li key={signal}>{signal}</li>
+          ))}
+        </ul>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 function QualityTooltip({ issue }: Readonly<{ issue: Issue }>) {
   const healthBoost = Math.round((issue.repositoryHealth.score ?? 0) / 10);
+  const responsivenessBoost = getResponsivenessBoost(
+    issue.repositoryResponsiveness?.status ?? "unknown",
+  );
 
   return (
     <Tooltip>
@@ -113,7 +170,8 @@ function QualityTooltip({ issue }: Readonly<{ issue: Issue }>) {
         </p>
         <p>
           Repository health contributes {healthBoost} points. Scores are not
-          percentages.
+          percentages. Maintainer responsiveness contributes {responsivenessBoost}
+          points.
         </p>
         {issue.enrichment?.repositoryMetadata === false ? (
           <p>Repository metadata was unavailable, so its ranking signals were omitted.</p>
@@ -157,6 +215,7 @@ function IssueBadges({ issue }: Readonly<{ issue: Issue }>) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <RepositoryHealthTooltip issue={issue} />
+      <ResponsivenessTooltip issue={issue} />
       {issue.hacktoberfest ? (
         <Badge className="border-sky-500/20 bg-sky-500/10 text-sky-700 dark:text-sky-400">
           {issue.hacktoberfestSource === "repo-topic"

@@ -42,6 +42,7 @@ async function listSavedSearches(userId: string): Promise<SavedSearch[]> {
     experience: row.experience,
     contributionType: row.contributionType,
     scope: row.scope,
+    responsiveness: row.responsiveness,
     createdAt: row.createdAt.toISOString(),
   }));
 }

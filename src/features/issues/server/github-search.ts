@@ -6,6 +6,7 @@ import {
   HACKTOBERFEST_FILTERS,
   LINKED_PR_FILTERS,
   LANGUAGE_ALIASES,
+  RESPONSIVENESS_FILTERS,
   SCOPE_FILTERS,
   TOPIC_ALIASES,
 } from "@/features/issues/data/search-options";
@@ -15,6 +16,13 @@ import {
 } from "@/features/issues/lib/issue-classification";
 import { rankIssues } from "@/features/issues/lib/ranking";
 import { scoreRepositoryHealth } from "@/features/issues/lib/repository-health";
+import {
+  getResponsivenessBoost,
+  scoreRepositoryResponsiveness,
+  unknownRepositoryResponsiveness,
+  type ResponsivenessIssue,
+  type ResponsivenessPullRequest,
+} from "@/features/issues/lib/repository-responsiveness";
 import type {
   GitHubIssue,
   GitHubRepo,
@@ -33,6 +41,38 @@ const PAGE_SIZE = 24;
 const CANDIDATE_PAGE_COUNT = 5;
 const REPO_SEARCH_PAGE_SIZE = 20;
 const REPO_ISSUE_BATCH_SIZE = 10;
+const RESPONSIVENESS_REPOSITORY_LIMIT = 12;
+
+type GitHubResponsivenessResponse = {
+  data?: {
+    repository?: {
+      issues: { nodes: ResponsivenessIssue[] };
+      pullRequests: { nodes: ResponsivenessPullRequest[] };
+    } | null;
+  };
+  errors?: Array<{ message: string }>;
+};
+
+const RESPONSIVENESS_QUERY = `
+  query RepositoryResponsiveness($owner: String!, $name: String!, $since: DateTime!) {
+    repository(owner: $owner, name: $name) {
+      issues(first: 20, orderBy: { field: CREATED_AT, direction: DESC }, filterBy: { since: $since }) {
+        nodes {
+          author { login }
+          closedAt
+          createdAt
+          labels(first: 10) { nodes { name } }
+          comments(first: 20) {
+            nodes { author { login } authorAssociation createdAt }
+          }
+        }
+      }
+      pullRequests(first: 20, orderBy: { field: CREATED_AT, direction: DESC }) {
+        nodes { authorAssociation createdAt mergedAt }
+      }
+    }
+  }
+`;
 
 function normalize(value: string | null) {
   return (value ?? "").trim().toLowerCase();
@@ -281,6 +321,49 @@ async function githubFetch<T>(url: string, token?: string, revalidate = 60) {
   };
 }
 
+export async function getRepositoryResponsiveness(
+  fullName: string,
+  token = process.env.GITHUB_TOKEN,
+) {
+  if (!token) {
+    return unknownRepositoryResponsiveness("GitHub token required for responsiveness analysis");
+  }
+
+  const [owner, name] = fullName.split("/");
+  if (!owner || !name) return unknownRepositoryResponsiveness();
+
+  const sinceDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+  sinceDate.setUTCHours(Math.floor(sinceDate.getUTCHours() / 6) * 6, 0, 0, 0);
+  const since = sinceDate.toISOString();
+  const response = await fetch("https://api.github.com/graphql", {
+    method: "POST",
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      "X-GitHub-Api-Version": "2022-11-28",
+    },
+    body: JSON.stringify({
+      query: RESPONSIVENESS_QUERY,
+      variables: { owner, name, since },
+    }),
+    next: { revalidate: 21600 },
+  });
+
+  if (!response.ok) throw new Error(`GitHub GraphQL error ${response.status}`);
+  const payload = (await response.json()) as GitHubResponsivenessResponse;
+  const repository = payload.data?.repository;
+
+  if (!repository || payload.errors?.length) {
+    throw new Error(payload.errors?.[0]?.message ?? "Repository analytics unavailable");
+  }
+
+  return scoreRepositoryResponsiveness(
+    repository.issues.nodes,
+    repository.pullRequests.nodes,
+  );
+}
+
 export async function searchGitHubRepositories(
   query: string,
 ): Promise<RepositorySuggestion[]> {
@@ -344,6 +427,7 @@ export async function searchGitHubIssues({
   experience: rawExperience,
   contributionType: rawContributionType,
   scope: rawScope,
+  responsiveness: rawResponsiveness,
   updatedAfter,
   updatedBefore,
   page = 1,
@@ -356,6 +440,7 @@ export async function searchGitHubIssues({
   experience?: string | null;
   contributionType?: string | null;
   scope?: string | null;
+  responsiveness?: string | null;
   updatedAfter?: string;
   updatedBefore?: string;
   page?: number;
@@ -384,6 +469,11 @@ export async function searchGitHubIssues({
     "any",
   );
   const scope = resolveSearchOption(rawScope, SCOPE_FILTERS, "any");
+  const responsiveness = resolveSearchOption(
+    rawResponsiveness,
+    RESPONSIVENESS_FILTERS,
+    "any",
+  );
   const token = process.env.GITHUB_TOKEN;
   const repoTopicQuery = buildRepoTopicQuery(tech);
   let matchingRepos: GitHubRepo[] = [];
@@ -529,6 +619,21 @@ export async function searchGitHubIssues({
     }),
   );
   const repoEntries = [...repoEntriesFromSearch, ...fetchedRepoEntries];
+  const responsivenessRepoNames = Array.from(
+    new Set(candidateIssues.map((issue) => getRepoFullName(issue.repository_url))),
+  ).slice(0, RESPONSIVENESS_REPOSITORY_LIMIT);
+  const responsivenessEntries = await Promise.all(
+    responsivenessRepoNames.map(async (fullName) => {
+      try {
+        return [
+          fullName,
+          await getRepositoryResponsiveness(fullName, token),
+        ] as const;
+      } catch {
+        return [fullName, unknownRepositoryResponsiveness()] as const;
+      }
+    }),
+  );
 
   const commentEntries = await Promise.all(
     candidateIssues.map(async (issue) => {
@@ -593,6 +698,7 @@ export async function searchGitHubIssues({
     { comments: Array<{ body: string }>; available: boolean }
   >(commentEntries);
   const repos = new Map(repoEntries);
+  const repositoryResponsiveness = new Map(responsivenessEntries);
   const rankedIssues = rankIssues(
     candidateIssues.map((issue): Issue => {
       const repoName = getRepoFullName(issue.repository_url);
@@ -609,6 +715,9 @@ export async function searchGitHubIssues({
       }
       const hacktoberfestSource = getHacktoberfestSource(issue, repo);
       const repositoryHealth = scoreRepositoryHealth(repo);
+      const responsivenessSummary =
+        repositoryResponsiveness.get(repoName) ??
+        unknownRepositoryResponsiveness("Repository outside bounded analytics sample");
       const classification = classifyIssue(issue);
 
       return {
@@ -630,11 +739,13 @@ export async function searchGitHubIssues({
         classification,
         qualityScore:
           scoreIssue(issue, repo, helpStatus, Boolean(hacktoberfestSource)) +
-          Math.round((repositoryHealth.score ?? 0) / 10),
+          Math.round((repositoryHealth.score ?? 0) / 10) +
+          getResponsivenessBoost(responsivenessSummary.status),
         ...(sort === "trending"
           ? { trendingScore: scoreTrendingIssue(issue, repo) }
           : {}),
         repositoryHealth,
+        repositoryResponsiveness: responsivenessSummary,
         enrichment: {
           repositoryMetadata: Boolean(repo),
           discussionAnalysis: discussion.available,
@@ -644,6 +755,8 @@ export async function searchGitHubIssues({
     }).filter(
       (issue) =>
         (hacktoberfest !== "only" || issue.hacktoberfest) &&
+        (responsiveness === "any" ||
+          issue.repositoryResponsiveness?.status === responsiveness) &&
         Boolean(
           issue.classification &&
             matchesClassification(

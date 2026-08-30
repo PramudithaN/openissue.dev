@@ -70,6 +70,20 @@ flowchart LR
 
 Candidate issues are enriched where possible with repository metadata, recent discussion, assignment state, linked pull requests, and Hacktoberfest signals. Repository health uses recent pushes, open issue and pull-request activity, stars, forks, and issue-tracker availability to distinguish active, moderate, and stale projects. The health score contributes a small optional boost to issue quality ranking and is shown directly on issue cards. The application ranks the enriched results for contributor relevance and returns paginated results to the browser.
 
+Maintainer responsiveness remains separate from repository health. For at most 12
+candidate repositories per search, a cached six-hour GitHub GraphQL request samples
+up to 20 recently updated issues and pull requests from the previous 90 days. The
+summary considers the first response from an owner, member, or collaborator (while
+excluding comments from the issue author), unanswered contributor-friendly issues,
+recent closures, and the external pull-request merge ratio. A responsive status
+requires at least half of sampled external pull requests to be merged when any are
+present; multiple external pull requests with a merge ratio below 25% indicate a
+slow repository. Fewer than four contribution
+samples, missing authentication, repositories outside the bounded batch, and partial
+GitHub failures produce `Unknown`. Responsive repositories receive a five-point
+quality boost and variable repositories receive two points; repository health is
+calculated and displayed independently.
+
 Search responses report repository-metadata, discussion-analysis, and linked-PR
 availability separately. Optional enrichment failures do not discard usable issue
 results; the interface identifies partial data and score explanations omit signals
@@ -85,6 +99,7 @@ Search filters currently include:
 - Any experience, first contribution, beginner, or intermediate
 - Documentation, tests, bug fix, or feature contribution type
 - All scopes or small scope
+- Any, responsive, variable, slow, or unknown maintainer responsiveness
 
 Experience, contribution type, and scope classifications use explicit issue
 labels and structured issue-template fields. Results show the signals that
@@ -185,7 +200,12 @@ observation is explicitly presented as a baseline.
 
 Digest issue links open GitHub directly. Saved-search links include the existing
 filter query parameters; the issue finder reads those parameters and runs the
-linked search on load.
+linked search on load. Weekly recommendations honor the saved responsiveness
+filter and show each repository's status and sample size. Repository-alert
+emails also show the cached responsiveness status, sample period, and
+contributing signals beside each repository. Weekly recommendations display the
+same quality score used to rank results in the portal. Repository alerts remain
+newest-issue notifications and do not assign portal search-quality scores.
 
 Authenticated users can also request their own digest immediately from the
 saved-search card. The manual route uses the same delivery pipeline and six-day
