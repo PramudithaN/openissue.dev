@@ -87,3 +87,35 @@ export const HACKTOBERFEST_OPTIONS = [
 export const HACKTOBERFEST_FILTERS = new Set(
   HACKTOBERFEST_OPTIONS.map((option) => option.value),
 );
+
+export const EXPERIENCE_OPTIONS = [
+  { value: "any", label: "Any experience" },
+  { value: "first", label: "First contribution" },
+  { value: "beginner", label: "Beginner" },
+  { value: "intermediate", label: "Intermediate" },
+];
+
+export const EXPERIENCE_FILTERS = new Set(
+  EXPERIENCE_OPTIONS.map((option) => option.value),
+);
+
+export const CONTRIBUTION_TYPE_OPTIONS = [
+  { value: "any", label: "Any contribution type" },
+  { value: "documentation", label: "Documentation" },
+  { value: "tests", label: "Tests" },
+  { value: "bugfix", label: "Bug fix" },
+  { value: "feature", label: "Feature" },
+];
+
+export const CONTRIBUTION_TYPE_FILTERS = new Set(
+  CONTRIBUTION_TYPE_OPTIONS.map((option) => option.value),
+);
+
+export const SCOPE_OPTIONS = [
+  { value: "any", label: "Any scope" },
+  { value: "small", label: "Small scope" },
+];
+
+export const SCOPE_FILTERS = new Set(
+  SCOPE_OPTIONS.map((option) => option.value),
+);

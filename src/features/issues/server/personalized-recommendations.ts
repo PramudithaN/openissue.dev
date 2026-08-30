@@ -8,6 +8,37 @@ const MAX_RECOMMENDATIONS = 24;
 const PREFERENCE_MATCH_SCORE = 12;
 const FAMILIAR_REPOSITORY_SCORE = 4;
 
+function preferenceSignals(preference: SavedSearch) {
+  const signals = [
+    `Technology: ${preference.tech}`,
+    `Label: ${preference.label}`,
+  ];
+
+  if (preference.experience && preference.experience !== "any") {
+    signals.push(`Experience: ${preference.experience}`);
+  }
+  if (preference.contributionType && preference.contributionType !== "any") {
+    signals.push(`Contribution type: ${preference.contributionType}`);
+  }
+  if (preference.scope === "small") signals.push("Scope: small");
+
+  return signals;
+}
+
+function addMatchSignals(recommendation: RecommendedIssue, signals: string[]) {
+  for (const signal of signals) {
+    if (recommendation.matchSignals.includes(signal)) continue;
+    recommendation.matchSignals.push(signal);
+    recommendation.recommendationScore += PREFERENCE_MATCH_SCORE;
+  }
+}
+
+function addFamiliarRepositorySignal(recommendation: RecommendedIssue) {
+  if (recommendation.matchSignals.includes("Familiar repository")) return;
+  recommendation.matchSignals.push("Familiar repository");
+  recommendation.recommendationScore += FAMILIAR_REPOSITORY_SCORE;
+}
+
 export async function buildPersonalizedRecommendations(
   savedSearches: SavedSearch[],
   opportunities: Array<{ issueUrl: string; repositoryFullName: string }>,
@@ -38,6 +69,9 @@ export async function buildPersonalizedRecommendations(
         sort: "updated",
         linkedPr: "any",
         hacktoberfest: "any",
+        experience: preference.experience ?? "any",
+        contributionType: preference.contributionType ?? "any",
+        scope: preference.scope ?? "any",
       }),
     ),
   );
@@ -58,24 +92,13 @@ export async function buildPersonalizedRecommendations(
         recommendationScore: issue.qualityScore,
         matchSignals: [],
       };
-      const signals = [
-        `Technology: ${preference.tech}`,
-        `Label: ${preference.label}`,
-      ];
-
-      for (const signal of signals) {
-        if (!current.matchSignals.includes(signal)) {
-          current.matchSignals.push(signal);
-          current.recommendationScore += PREFERENCE_MATCH_SCORE;
-        }
-      }
+      addMatchSignals(current, preferenceSignals(preference));
 
       if (
         familiarRepositories.has(issue.repo.toLowerCase()) &&
         !current.matchSignals.includes("Familiar repository")
       ) {
-        current.matchSignals.push("Familiar repository");
-        current.recommendationScore += FAMILIAR_REPOSITORY_SCORE;
+        addFamiliarRepositorySignal(current);
       }
 
       recommendations.set(issue.id, current);

@@ -54,10 +54,13 @@ import { RepositoryDigestCard } from "@/features/issues/components/repository-di
 import { AdminEmailCard } from "@/features/issues/components/admin-email-card";
 import { ContributionHistory } from "@/features/issues/components/contribution-history";
 import {
+  CONTRIBUTION_TYPE_OPTIONS,
+  EXPERIENCE_OPTIONS,
   HACKTOBERFEST_OPTIONS,
   LABEL_OPTIONS,
   LINKED_PR_OPTIONS,
   SORT_OPTIONS,
+  SCOPE_OPTIONS,
   TECH_EXAMPLES,
 } from "@/features/issues/data/search-options";
 import { compactNumber } from "@/features/issues/lib/format";
@@ -82,6 +85,9 @@ type SearchFilters = {
   sort: string;
   linkedPr: string;
   hacktoberfest: string;
+  experience: string;
+  contributionType: string;
+  scope: string;
 };
 
 const DEFAULT_SEARCH_FILTERS: SearchFilters = {
@@ -90,6 +96,9 @@ const DEFAULT_SEARCH_FILTERS: SearchFilters = {
   sort: "updated",
   linkedPr: "any",
   hacktoberfest: "any",
+  experience: "any",
+  contributionType: "any",
+  scope: "any",
 };
 
 function getSupportedValue(
@@ -116,6 +125,17 @@ function getSearchFilters(search: string): SearchFilters | null {
       HACKTOBERFEST_OPTIONS,
       "any",
     ),
+    experience: getSupportedValue(
+      params.get("experience"),
+      EXPERIENCE_OPTIONS,
+      "any",
+    ),
+    contributionType: getSupportedValue(
+      params.get("contributionType"),
+      CONTRIBUTION_TYPE_OPTIONS,
+      "any",
+    ),
+    scope: getSupportedValue(params.get("scope"), SCOPE_OPTIONS, "any"),
   };
 }
 
@@ -126,6 +146,9 @@ function createSearchParams(filters: SearchFilters, page?: number) {
     sort: filters.sort,
     linkedPr: filters.linkedPr,
     hacktoberfest: filters.hacktoberfest,
+    experience: filters.experience,
+    contributionType: filters.contributionType,
+    scope: filters.scope,
     ...(page ? { page: String(page) } : {}),
   });
 }
@@ -612,6 +635,13 @@ export function IssueFinder() {
   const [hacktoberfest, setHacktoberfest] = useState(
     DEFAULT_SEARCH_FILTERS.hacktoberfest,
   );
+  const [experience, setExperience] = useState(
+    DEFAULT_SEARCH_FILTERS.experience,
+  );
+  const [contributionType, setContributionType] = useState(
+    DEFAULT_SEARCH_FILTERS.contributionType,
+  );
+  const [scope, setScope] = useState(DEFAULT_SEARCH_FILTERS.scope);
   const [data, setData] = useState<SearchResponse | null>(null);
   const [issues, setIssues] = useState<Issue[]>([]);
   const [page, setPage] = useState(1);
@@ -651,6 +681,9 @@ export function IssueFinder() {
         setSort(DEFAULT_SEARCH_FILTERS.sort);
         setLinkedPr(DEFAULT_SEARCH_FILTERS.linkedPr);
         setHacktoberfest(DEFAULT_SEARCH_FILTERS.hacktoberfest);
+        setExperience(DEFAULT_SEARCH_FILTERS.experience);
+        setContributionType(DEFAULT_SEARCH_FILTERS.contributionType);
+        setScope(DEFAULT_SEARCH_FILTERS.scope);
         setData(null);
         setIssues([]);
         setError(null);
@@ -664,6 +697,9 @@ export function IssueFinder() {
       setSort(linkedSearch.sort);
       setLinkedPr(linkedSearch.linkedPr);
       setHacktoberfest(linkedSearch.hacktoberfest);
+      setExperience(linkedSearch.experience);
+      setContributionType(linkedSearch.contributionType);
+      setScope(linkedSearch.scope);
       void searchIssues(undefined, linkedSearch, false);
     }
 
@@ -794,6 +830,23 @@ export function IssueFinder() {
       HACKTOBERFEST_OPTIONS[0],
     [hacktoberfest],
   );
+  const selectedExperience = useMemo(
+    () =>
+      EXPERIENCE_OPTIONS.find((item) => item.value === experience) ??
+      EXPERIENCE_OPTIONS[0],
+    [experience],
+  );
+  const selectedContributionType = useMemo(
+    () =>
+      CONTRIBUTION_TYPE_OPTIONS.find(
+        (item) => item.value === contributionType,
+      ) ?? CONTRIBUTION_TYPE_OPTIONS[0],
+    [contributionType],
+  );
+  const selectedScope = useMemo(
+    () => SCOPE_OPTIONS.find((item) => item.value === scope) ?? SCOPE_OPTIONS[0],
+    [scope],
+  );
 
   const hasMore = useMemo(() => {
     if (!data) return false;
@@ -820,6 +873,9 @@ export function IssueFinder() {
         sort,
         linkedPr,
         hacktoberfest,
+        experience,
+        contributionType,
+        scope,
       });
 
       setSavedSearches((current) => [...current, savedSearch]);
@@ -870,6 +926,9 @@ export function IssueFinder() {
     setSort(savedSearch.sort);
     setLinkedPr(savedSearch.linkedPr);
     setHacktoberfest(savedSearch.hacktoberfest);
+    setExperience(savedSearch.experience ?? "any");
+    setContributionType(savedSearch.contributionType ?? "any");
+    setScope(savedSearch.scope ?? "any");
 
     void searchIssues(undefined, {
       tech: savedSearch.tech,
@@ -877,6 +936,9 @@ export function IssueFinder() {
       sort: savedSearch.sort,
       linkedPr: savedSearch.linkedPr,
       hacktoberfest: savedSearch.hacktoberfest,
+      experience: savedSearch.experience ?? "any",
+      contributionType: savedSearch.contributionType ?? "any",
+      scope: savedSearch.scope ?? "any",
     });
   }
 
@@ -953,6 +1015,10 @@ export function IssueFinder() {
     const searchSort = searchOverride?.sort ?? sort;
     const searchLinkedPr = searchOverride?.linkedPr ?? linkedPr;
     const searchHacktoberfest = searchOverride?.hacktoberfest ?? hacktoberfest;
+    const searchExperience = searchOverride?.experience ?? experience;
+    const searchContributionType =
+      searchOverride?.contributionType ?? contributionType;
+    const searchScope = searchOverride?.scope ?? scope;
 
     if (!searchTech.trim()) {
       setError("Enter a technology to search.");
@@ -972,6 +1038,9 @@ export function IssueFinder() {
       sort: searchSort,
       linkedPr: searchLinkedPr,
       hacktoberfest: searchHacktoberfest,
+      experience: searchExperience,
+      contributionType: searchContributionType,
+      scope: searchScope,
     });
     const requestId = ++searchRequestId.current;
 
@@ -1021,7 +1090,16 @@ export function IssueFinder() {
 
     const nextPage = page + 1;
     const params = createSearchParams(
-      { tech, label, sort, linkedPr, hacktoberfest },
+      {
+        tech,
+        label,
+        sort,
+        linkedPr,
+        hacktoberfest,
+        experience,
+        contributionType,
+        scope,
+      },
       nextPage,
     );
 
@@ -1175,6 +1253,60 @@ export function IssueFinder() {
                 </SelectContent>
               </Select>
 
+              <Select value={experience} onValueChange={setExperience}>
+                <SelectTrigger
+                  className="h-11 w-full"
+                  size="lg"
+                  aria-label="Experience filter"
+                >
+                  <SelectValue>{selectedExperience.label}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {EXPERIENCE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={contributionType}
+                onValueChange={setContributionType}
+              >
+                <SelectTrigger
+                  className="h-11 w-full"
+                  size="lg"
+                  aria-label="Contribution type filter"
+                >
+                  <SelectValue>{selectedContributionType.label}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {CONTRIBUTION_TYPE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={scope} onValueChange={setScope}>
+                <SelectTrigger
+                  className="h-11 w-full"
+                  size="lg"
+                  aria-label="Scope filter"
+                >
+                  <SelectValue>{selectedScope.label}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {SCOPE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
               <Button
                 type="submit"
                 className="h-11 w-full gap-2 sm:col-span-2 lg:col-span-1"
@@ -1207,6 +1339,9 @@ export function IssueFinder() {
                 label="Hacktoberfest"
                 value={selectedHacktoberfest.label}
               />
+              <Metric label="Experience" value={selectedExperience.label} />
+              <Metric label="Type" value={selectedContributionType.label} />
+              <Metric label="Scope" value={selectedScope.label} />
               <Metric
                 label="Ranked"
                 value={data ? compactNumber(data.candidateCount) : "-"}

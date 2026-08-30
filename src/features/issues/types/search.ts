@@ -19,6 +19,13 @@ export type IssueEnrichment = {
   linkedPullRequests: boolean;
 };
 
+export type IssueClassification = {
+  experience: Array<"first" | "beginner" | "intermediate">;
+  contributionTypes: Array<"documentation" | "tests" | "bugfix" | "feature">;
+  smallScope: boolean;
+  signals: string[];
+};
+
 export type SearchEnrichment = {
   repositoryMetadata: EnrichmentAvailability;
   discussionAnalysis: EnrichmentAvailability;
@@ -45,6 +52,7 @@ export type Issue = {
   repositoryHealth: RepositoryHealth;
   enrichment?: IssueEnrichment;
   helpStatus?: IssueStatus;
+  classification?: IssueClassification;
 };
 
 export type SearchResponse = {

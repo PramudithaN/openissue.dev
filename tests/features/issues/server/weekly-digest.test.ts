@@ -104,6 +104,9 @@ describe("weekly digest", () => {
       sort: "updated",
       linkedPr: "any",
       hacktoberfest: "any",
+      experience: "any",
+      contributionType: "any",
+      scope: "any",
     });
 
     const digest = await buildWeeklyDigest(

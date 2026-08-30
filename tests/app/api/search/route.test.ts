@@ -44,7 +44,7 @@ describe("GET /api/search", () => {
 
     const response = await GET(
       new Request(
-        "http://localhost/api/search?tech=React&label=good-first-issue&sort=created&linkedPr=yes&hacktoberfest=only",
+        "http://localhost/api/search?tech=React&label=good-first-issue&sort=created&linkedPr=yes&hacktoberfest=only&experience=first&contributionType=documentation&scope=small",
       ),
     );
 
@@ -55,6 +55,9 @@ describe("GET /api/search", () => {
       sort: "created",
       linkedPr: "yes",
       hacktoberfest: "only",
+      experience: "first",
+      contributionType: "documentation",
+      scope: "small",
       page: 1,
     });
   });

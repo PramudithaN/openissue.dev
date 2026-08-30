@@ -25,6 +25,9 @@ export function getDigestSearchKey(search: SavedSearch) {
     sort: search.sort,
     linkedPr: search.linkedPr,
     hacktoberfest: search.hacktoberfest,
+    experience: search.experience ?? "any",
+    contributionType: search.contributionType ?? "any",
+    scope: search.scope ?? "any",
   });
 }
 
@@ -62,6 +65,9 @@ function searchUrl(baseUrl: string, search: SavedSearch) {
   url.searchParams.set("sort", search.sort);
   url.searchParams.set("linkedPr", search.linkedPr);
   url.searchParams.set("hacktoberfest", search.hacktoberfest);
+  url.searchParams.set("experience", search.experience ?? "any");
+  url.searchParams.set("contributionType", search.contributionType ?? "any");
+  url.searchParams.set("scope", search.scope ?? "any");
   return url.toString();
 }
 
@@ -101,6 +107,9 @@ export async function buildWeeklyDigest(
         sort: search.sort,
         linkedPr: search.linkedPr,
         hacktoberfest: search.hacktoberfest,
+        experience: search.experience ?? "any",
+        contributionType: search.contributionType ?? "any",
+        scope: search.scope ?? "any",
         updatedAfter,
         updatedBefore,
       }),

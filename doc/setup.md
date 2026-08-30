@@ -48,6 +48,7 @@ Run the SQL migrations in filename order against the Turso database:
 6. `db/migrations/0006_alert_email.sql`
 7. `db/migrations/0007_admin.sql`
 8. `db/migrations/0008_opportunity.sql`
+9. `db/migrations/0009_experience_scope_filters.sql`
 
 The first migration creates Better Auth's user, session, account, and verification tables. The second creates user-owned saved searches. Migration files intentionally contain structure only—never credentials or production data.
 
@@ -67,6 +68,8 @@ Password only in protected environment variables; never commit it.
 The seventh adds explicit administrator membership. The eighth stores one
 deduplicated opportunity record for each issue a signed-in user saves or opens;
 it does not store the user's GitHub contribution history.
+The ninth adds experience, contribution-type, and scope preferences to cloud
+saved searches. Existing records default to unrestricted filters.
 
 ## GitHub OAuth
 
