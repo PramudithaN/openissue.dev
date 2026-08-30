@@ -444,6 +444,16 @@ describe("searchGitHubIssues", () => {
     expect(result.issues[0]).toMatchObject({
       stars: 2500,
       helpStatus: "claimed",
+      enrichment: {
+        repositoryMetadata: true,
+        discussionAnalysis: true,
+        linkedPullRequests: true,
+      },
+    });
+    expect(result.enrichment).toEqual({
+      repositoryMetadata: "complete",
+      discussionAnalysis: "complete",
+      linkedPullRequests: "complete",
     });
   });
 
@@ -525,6 +535,16 @@ describe("searchGitHubIssues", () => {
       stars: null,
       linkedPrCount: null,
       helpStatus: "claimed",
+      enrichment: {
+        repositoryMetadata: false,
+        discussionAnalysis: false,
+        linkedPullRequests: false,
+      },
+    });
+    expect(result.enrichment).toEqual({
+      repositoryMetadata: "unavailable",
+      discussionAnalysis: "unavailable",
+      linkedPullRequests: "unavailable",
     });
   });
 

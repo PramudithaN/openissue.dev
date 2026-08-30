@@ -70,6 +70,11 @@ flowchart LR
 
 Candidate issues are enriched where possible with repository metadata, recent discussion, assignment state, linked pull requests, and Hacktoberfest signals. Repository health uses recent pushes, open issue and pull-request activity, stars, forks, and issue-tracker availability to distinguish active, moderate, and stale projects. The health score contributes a small optional boost to issue quality ranking and is shown directly on issue cards. The application ranks the enriched results for contributor relevance and returns paginated results to the browser.
 
+Search responses report repository-metadata, discussion-analysis, and linked-PR
+availability separately. Optional enrichment failures do not discard usable issue
+results; the interface identifies partial data and score explanations omit signals
+that were unavailable.
+
 Search filters currently include:
 
 - Technology or ecosystem
@@ -83,6 +88,11 @@ limit candidates to issues updated in the last 30 days. Results are ranked with
 an explainable activity score combining recency, discussion volume, repository
 stars, and repository health. The normal contributor-quality score remains
 visible so users can balance momentum with issue suitability.
+
+After a successful search, the browser URL stores the active filters without a
+page reload. Opening a shared URL restores the filters and results, while browser
+back and forward navigation restores prior searches. Pagination does not add
+history entries.
 
 ## Authentication
 
@@ -143,6 +153,14 @@ digest preferences, and repository-alert records. Opportunities reference
 interaction timestamps; GitHub contribution payloads are not persisted.
 
 Schema definitions live in `src/lib/auth-schema.ts`; executable SQL is versioned under `db/migrations/`.
+
+Normal application runtime code cannot execute DDL. The shared libSQL client
+rejects schema-changing statements across single executions, batches, scripts,
+and interactive transactions, and its migration API is disabled. A separate
+privileged client is returned only after `getAdminDb(request)` authenticates the
+request and verifies membership in the `admin` table. Source linting prevents
+direct libSQL client imports outside `src/lib/db.ts`; planned schema changes
+should still remain in the reviewed `db/migrations/` workflow.
 
 ## Weekly digest
 

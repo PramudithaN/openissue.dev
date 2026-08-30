@@ -15,6 +15,7 @@ import type {
   GitHubSearchResponse,
   GitHubTimelineEvent,
   Issue,
+  IssueEnrichment,
   IssueStatus,
   SearchResponse,
   RepositoryDigestIssue,
@@ -237,6 +238,21 @@ function dedupeIssues(issues: GitHubIssue[]) {
   return Array.from(issueMap.values());
 }
 
+function summarizeEnrichment(
+  issues: Issue[],
+  signal: keyof IssueEnrichment,
+) {
+  if (issues.length === 0) return "complete" as const;
+
+  const availableCount = issues.filter(
+    (issue) => issue.enrichment?.[signal],
+  ).length;
+
+  if (availableCount === 0) return "unavailable" as const;
+  if (availableCount === issues.length) return "complete" as const;
+  return "partial" as const;
+}
+
 async function githubFetch<T>(url: string, token?: string, revalidate = 60) {
   const response = await fetch(url, {
     headers: {
@@ -422,6 +438,11 @@ export async function searchGitHubIssues({
       tokenConfigured: Boolean(token),
       issues: [],
       page,
+      enrichment: {
+        repositoryMetadata: "complete",
+        discussionAnalysis: "complete",
+        linkedPullRequests: "complete",
+      },
     };
   }
 
@@ -487,8 +508,18 @@ export async function searchGitHubIssues({
 
   const commentEntries = await Promise.all(
     candidateIssues.map(async (issue) => {
-      if (issue.comments === 0 || !token) {
-        return [issue.html_url, [] as Array<{ body: string }>] as const;
+      if (issue.comments === 0) {
+        return [
+          issue.html_url,
+          { comments: [] as Array<{ body: string }>, available: true },
+        ] as const;
+      }
+
+      if (!token) {
+        return [
+          issue.html_url,
+          { comments: [] as Array<{ body: string }>, available: false },
+        ] as const;
       }
 
       const repoName = getRepoFullName(issue.repository_url);
@@ -498,16 +529,22 @@ export async function searchGitHubIssues({
           token,
           7200, // Cache comment details for 2 hours
         );
-        return [issue.html_url, commentsResult.data] as const;
+        return [
+          issue.html_url,
+          { comments: commentsResult.data, available: true },
+        ] as const;
       } catch {
-        return [issue.html_url, [] as Array<{ body: string }>] as const;
+        return [
+          issue.html_url,
+          { comments: [] as Array<{ body: string }>, available: false },
+        ] as const;
       }
     }),
   );
 
   async function fetchLinkedPrCount(issue: GitHubIssue) {
     if (!token) {
-      return [issue.html_url, null] as const;
+      return [issue.html_url, { count: null, available: false }] as const;
     }
 
     const repoName = getRepoFullName(issue.repository_url);
@@ -518,22 +555,31 @@ export async function searchGitHubIssues({
         token,
         7200,
       );
-      return [issue.html_url, countLinkedPullRequests(timelineResult.data)] as const;
+      return [
+        issue.html_url,
+        { count: countLinkedPullRequests(timelineResult.data), available: true },
+      ] as const;
     } catch {
-      return [issue.html_url, null] as const;
+      return [issue.html_url, { count: null, available: false }] as const;
     }
   }
 
-  const issueCommentsMap = new Map(commentEntries);
+  const issueCommentsMap = new Map<
+    string,
+    { comments: Array<{ body: string }>; available: boolean }
+  >(commentEntries);
   const repos = new Map(repoEntries);
   const rankedIssues = rankIssues(
     candidateIssues.map((issue): Issue => {
       const repoName = getRepoFullName(issue.repository_url);
       const repo = repos.get(repoName);
-      const comments = issueCommentsMap.get(issue.html_url) ?? [];
+      const discussion = issueCommentsMap.get(issue.html_url) ?? {
+        comments: [],
+        available: false,
+      };
       const assigned = Boolean(issue.assignee || issue.assignees?.length);
       
-      let helpStatus: IssueStatus = analyzeThreadIntent(comments);
+      let helpStatus: IssueStatus = analyzeThreadIntent(discussion.comments);
       if (assigned) {
         helpStatus = "claimed";
       }
@@ -563,6 +609,11 @@ export async function searchGitHubIssues({
           ? { trendingScore: scoreTrendingIssue(issue, repo) }
           : {}),
         repositoryHealth,
+        enrichment: {
+          repositoryMetadata: Boolean(repo),
+          discussionAnalysis: discussion.available,
+          linkedPullRequests: false,
+        },
       };
     }).filter((issue) => hacktoberfest !== "only" || issue.hacktoberfest),
     sort,
@@ -576,11 +627,26 @@ export async function searchGitHubIssues({
       .filter((issue): issue is GitHubIssue => Boolean(issue))
       .map(fetchLinkedPrCount),
   );
-  const linkedPrCountMap = new Map(linkedPrEntries);
-  const issues = selectedIssues.map((issue) => ({
-    ...issue,
-    linkedPrCount: linkedPrCountMap.get(issue.id) ?? null,
-  }));
+  const linkedPrCountMap = new Map<
+    string,
+    { count: number | null; available: boolean }
+  >(linkedPrEntries);
+  const issues = selectedIssues.map((issue) => {
+    const linkedPullRequests = linkedPrCountMap.get(issue.id) ?? {
+      count: null,
+      available: false,
+    };
+
+    return {
+      ...issue,
+      linkedPrCount: linkedPullRequests.count,
+      enrichment: {
+        repositoryMetadata: issue.enrichment?.repositoryMetadata ?? false,
+        discussionAnalysis: issue.enrichment?.discussionAnalysis ?? false,
+        linkedPullRequests: linkedPullRequests.available,
+      },
+    };
+  });
 
   return {
     query: displayQuery,
@@ -590,5 +656,10 @@ export async function searchGitHubIssues({
     tokenConfigured: Boolean(token),
     issues,
     page,
+    enrichment: {
+      repositoryMetadata: summarizeEnrichment(issues, "repositoryMetadata"),
+      discussionAnalysis: summarizeEnrichment(issues, "discussionAnalysis"),
+      linkedPullRequests: summarizeEnrichment(issues, "linkedPullRequests"),
+    },
   };
 }

@@ -8,6 +8,8 @@
 - Filters by contributor-friendly label, linked pull requests, and Hacktoberfest readiness
 - Scores repository health from maintenance and contributor-activity signals
 - Sorts and ranks results using issue quality and repository health
+- Keeps successful searches in shareable, browser-navigable URLs
+- Identifies when optional GitHub enrichment is incomplete
 - Surfaces trending opportunities by recent activity, discussion, stars, and repository health
 - Supports reusable saved searches without requiring an account
 - Adds GitHub sign-in for cloud-backed saved searches that survive cleared browser storage

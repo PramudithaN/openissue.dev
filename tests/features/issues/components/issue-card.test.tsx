@@ -123,6 +123,25 @@ describe("issue presentation", () => {
     expect(screen.getByText("Health unknown")).toBeTruthy();
   });
 
+  it("does not imply unavailable enrichment was measured", () => {
+    render(
+      <IssueCard
+        issue={issue({
+          stars: null,
+          linkedPrCount: null,
+          enrichment: {
+            repositoryMetadata: false,
+            discussionAnalysis: false,
+            linkedPullRequests: false,
+          },
+        })}
+      />,
+    );
+
+    expect(screen.getByText("Unavailable")).toBeTruthy();
+    expect(screen.queryByText("Needs Help")).toBeNull();
+  });
+
   it("renders loading placeholders and metrics", () => {
     const { container } = render(<LoadingResults />);
     expect(container.querySelectorAll("[data-slot=card]")).toHaveLength(4);
