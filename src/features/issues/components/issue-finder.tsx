@@ -2,7 +2,7 @@
 
 import { FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import { Bookmark, Mail, Search, Trash2 } from "lucide-react";
+import { Bookmark, Mail, Search, Sparkles, Trash2 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AuthControls } from "@/components/auth-controls";
 import { Badge } from "@/components/ui/badge";
@@ -61,6 +61,8 @@ import {
   getOpportunities,
   updateOpportunity,
 } from "@/features/issues/lib/opportunity-cloud";
+import { getRecommendations } from "@/features/issues/lib/recommendation-cloud";
+import type { RecommendationResponse } from "@/features/issues/types/recommendation";
 
 function DigestControls({
   linkedEmail,
@@ -182,7 +184,7 @@ function SearchSummary({
   );
 }
 
-type ContentTab = "results" | "contributions";
+type ContentTab = "results" | "recommendations" | "contributions";
 
 function RankedIssuesPanel({
   error,
@@ -255,19 +257,175 @@ function RankedIssuesPanel({
   );
 }
 
+function RecommendationsPanel({
+  savedSearches,
+  savedOpportunityUrls,
+  onIssueOpen,
+  onIssueSaveChange,
+}: Readonly<{
+  savedSearches: SavedSearch[];
+  savedOpportunityUrls: ReadonlySet<string>;
+  onIssueOpen: (issue: Issue) => void;
+  onIssueSaveChange: (issue: Issue, saved: boolean) => void;
+}>) {
+  const [data, setData] = useState<RecommendationResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [preferredSearchId, setPreferredSearchId] = useState(() =>
+    savedSearches.at(-1)?.id ?? "",
+  );
+  const selectedSearchId = savedSearches.some(
+    (search) => search.id === preferredSearchId,
+  )
+    ? preferredSearchId
+    : savedSearches.at(-1)?.id ?? "";
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!selectedSearchId) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    void getRecommendations(selectedSearchId)
+      .then((response) => {
+        if (!cancelled) setData(response);
+      })
+      .catch((recommendationError) => {
+        if (!cancelled) {
+          setError(
+            recommendationError instanceof Error
+              ? recommendationError.message
+              : "Unable to load recommendations.",
+          );
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedSearchId]);
+
+  function selectSearch(searchId: string) {
+    setData(null);
+    setError(null);
+    setPreferredSearchId(searchId);
+  }
+
+  return (
+    <div
+      id="recommendations-panel"
+      role="tabpanel"
+      aria-label="Recommended for you"
+      className="space-y-4"
+    >
+      <div>
+        <h2 className="text-xl font-semibold">Recommended for you</h2>
+        <p className="text-sm text-muted-foreground">
+          Ranked from your most recent saved search preferences.
+        </p>
+      </div>
+      {savedSearches.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Recommendation preferences</CardTitle>
+            <CardDescription>
+              Select one saved search to use its technology and label.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Select value={selectedSearchId} onValueChange={selectSearch}>
+              <SelectTrigger className="w-full" aria-label="Recommendation saved search">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {savedSearches.map((search) => (
+                  <SelectItem key={search.id} value={search.id}>
+                    {search.name} · {search.tech} · {search.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </CardContent>
+        </Card>
+      ) : null}
+      {selectedSearchId && !data && !error ? <LoadingResults /> : null}
+      {error ? (
+        <Card className="border-destructive/40">
+          <CardHeader>
+            <CardTitle className="text-base text-destructive">
+              Recommendations unavailable
+            </CardTitle>
+            <CardDescription>{error}</CardDescription>
+          </CardHeader>
+        </Card>
+      ) : null}
+      {!selectedSearchId || data?.preferenceCount === 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Save a search to get recommendations</CardTitle>
+            <CardDescription>
+              Saved technologies and labels become your recommendation preferences.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      ) : null}
+      {data && data.preferenceCount > 0 && data.recommendations.length === 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">No new recommendations</CardTitle>
+            <CardDescription>
+              Try saving another technology or label preference.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      ) : null}
+      {selectedSearchId ? data?.recommendations.map((recommendation) => (
+        <IssueCard
+          key={recommendation.issue.id}
+          issue={recommendation.issue}
+          matchSignals={recommendation.matchSignals}
+          isSaved={savedOpportunityUrls.has(recommendation.issue.url)}
+          onOpen={onIssueOpen}
+          onSaveChange={onIssueSaveChange}
+        />
+      )) : null}
+    </div>
+  );
+}
+
 function IssueContentTabs({
   activeTab,
   authenticated,
   contributionRevision,
   onTabChange,
   rankedIssuesPanel,
+  recommendationsPanel,
 }: Readonly<{
   activeTab: ContentTab;
   authenticated: boolean;
   contributionRevision: number;
   onTabChange: (tab: ContentTab) => void;
   rankedIssuesPanel: ReactNode;
+  recommendationsPanel: ReactNode;
 }>) {
+  let activePanel = rankedIssuesPanel;
+
+  if (activeTab === "recommendations" && authenticated) {
+    activePanel = recommendationsPanel;
+  } else if (activeTab === "contributions" && authenticated) {
+    activePanel = (
+      <div
+        id="contribution-history-panel"
+        role="tabpanel"
+        aria-label="Contribution history"
+      >
+        <ContributionHistory key={contributionRevision} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex gap-2 border-b pb-3" role="tablist" aria-label="Issue activity">
@@ -286,6 +444,21 @@ function IssueContentTabs({
           <Button
             type="button"
             role="tab"
+            aria-selected={activeTab === "recommendations"}
+            aria-controls="recommendations-panel"
+            variant={activeTab === "recommendations" ? "default" : "outline"}
+            size="sm"
+            className="gap-2"
+            onClick={() => onTabChange("recommendations")}
+          >
+            <Sparkles className="h-4 w-4" />
+            Recommended for you
+          </Button>
+        ) : null}
+        {authenticated ? (
+          <Button
+            type="button"
+            role="tab"
             aria-selected={activeTab === "contributions"}
             aria-controls="contribution-history-panel"
             variant={activeTab === "contributions" ? "default" : "outline"}
@@ -296,17 +469,7 @@ function IssueContentTabs({
           </Button>
         ) : null}
       </div>
-      {activeTab === "contributions" && authenticated ? (
-        <div
-          id="contribution-history-panel"
-          role="tabpanel"
-          aria-label="Contribution history"
-        >
-          <ContributionHistory key={contributionRevision} />
-        </div>
-      ) : (
-        rankedIssuesPanel
-      )}
+      {activePanel}
     </div>
   );
 }
@@ -1067,6 +1230,16 @@ export function IssueFinder() {
                   : undefined
               }
               onLoadMore={() => void loadMoreIssues()}
+            />
+          }
+          recommendationsPanel={
+            <RecommendationsPanel
+              savedSearches={savedSearches}
+              savedOpportunityUrls={savedOpportunityUrls}
+              onIssueOpen={handleOpportunityOpen}
+              onIssueSaveChange={(selectedIssue, saved) =>
+                void handleOpportunitySave(selectedIssue, saved)
+              }
             />
           }
         />
