@@ -94,6 +94,7 @@ describe("weekly digest", () => {
     expect(digest.html).toContain("Responsive maintainer responsiveness");
     expect(digest.html).toContain("6 samples over 90 days");
     expect(digest.html).toContain("80 quality");
+    expect(digest.html).toContain("80 active health");
     expect(digest.html).toContain(
       "Leading recommendation source: acme/repo (1)",
     );

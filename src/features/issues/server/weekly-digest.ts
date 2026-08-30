@@ -174,8 +174,12 @@ export async function buildWeeklyDigest(
             const sample = responsiveness
               ? `, ${responsiveness.sampleSize} samples over ${responsiveness.sampleDays} days`
               : "";
+            const health = issue.repositoryHealth;
+            const healthText = health.score === null
+              ? "Health unknown"
+              : `${health.score} ${health.label} health`;
 
-            return `<li><a href="${escapeHtml(issue.url)}">${escapeHtml(issue.title)}</a> in ${escapeHtml(issue.repo)} — ${issue.qualityScore} quality · ${escapeHtml(status)} maintainer responsiveness${escapeHtml(sample)}</li>`;
+            return `<li><a href="${escapeHtml(issue.url)}">${escapeHtml(issue.title)}</a> in ${escapeHtml(issue.repo)} — ${issue.qualityScore} quality · ${escapeHtml(healthText)} · ${escapeHtml(status)} maintainer responsiveness${escapeHtml(sample)}</li>`;
           },
         )
         .join("")

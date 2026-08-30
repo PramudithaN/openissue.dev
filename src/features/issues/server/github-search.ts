@@ -397,11 +397,21 @@ export async function getRecentRepositoryIssues(
   url.searchParams.set("sort", "created");
   url.searchParams.set("order", "desc");
   url.searchParams.set("per_page", "5");
-  const result = await githubFetch<GitHubSearchResponse>(
-    url.toString(),
-    process.env.GITHUB_TOKEN,
-    180,
-  );
+  const [result, repository] = await Promise.all([
+    githubFetch<GitHubSearchResponse>(
+      url.toString(),
+      process.env.GITHUB_TOKEN,
+      180,
+    ),
+    githubFetch<GitHubRepo>(
+      `https://api.github.com/repos/${repositoryFullName}`,
+      process.env.GITHUB_TOKEN,
+      7200,
+    )
+      .then((response) => response.data)
+      .catch(() => undefined),
+  ]);
+  const repositoryHealth = scoreRepositoryHealth(repository);
 
   return result.data.items.slice(0, 5).map((issue) => ({
     id: issue.html_url,
@@ -415,6 +425,14 @@ export async function getRecentRepositoryIssues(
     createdAt: issue.created_at,
     comments: issue.comments,
     assigned: Boolean(issue.assignee || issue.assignees?.length),
+    qualityScore:
+      scoreIssue(
+        issue,
+        repository,
+        undefined,
+        Boolean(getHacktoberfestSource(issue, repository)),
+      ) + Math.round((repositoryHealth.score ?? 0) / 10),
+    repositoryHealth,
   }));
 }
 

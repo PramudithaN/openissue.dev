@@ -4,7 +4,10 @@ import {
   getRecentRepositoryIssues,
   getRepositoryResponsiveness,
 } from "@/features/issues/server/github-search";
-import { unknownRepositoryResponsiveness } from "@/features/issues/lib/repository-responsiveness";
+import {
+  getResponsivenessBoost,
+  unknownRepositoryResponsiveness,
+} from "@/features/issues/lib/repository-responsiveness";
 
 export type RepositoryDigestSelection = {
   id: string;
@@ -22,7 +25,10 @@ function escapeHtml(value: string) {
     .replaceAll("'", "&#039;");
 }
 
-function issueCard(issue: Awaited<ReturnType<typeof getRecentRepositoryIssues>>[number]) {
+function issueCard(
+  issue: Awaited<ReturnType<typeof getRecentRepositoryIssues>>[number],
+  responsivenessBoost: number,
+) {
   const date = new Date(issue.createdAt).toLocaleDateString("en", {
     timeZone: "UTC",
     month: "short",
@@ -38,8 +44,13 @@ function issueCard(issue: Awaited<ReturnType<typeof getRecentRepositoryIssues>>[
   const labelRow = labels
     ? `<tr><td style="padding-top:8px;">${labels}</td></tr>`
     : "";
+  const qualityScore = issue.qualityScore + responsivenessBoost;
+  const health = issue.repositoryHealth;
+  const healthText = health.score === null
+    ? "Health unknown"
+    : `${health.score} ${health.label} health`;
 
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#161b26;border-radius:8px;margin-bottom:10px;"><tr><td style="padding:14px 16px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td><a href="${escapeHtml(issue.url)}" class="issue-title-mobile" style="font-size:14.5px;font-weight:700;color:#f4f5f7;line-height:1.4;text-decoration:none;">${escapeHtml(issue.title)}</a></td></tr><tr><td style="padding-top:6px;"><p style="margin:0;font-size:13px;line-height:1.55;color:#9ca3af;">${escapeHtml(issue.summary)}</p></td></tr><tr><td style="padding-top:10px;"><span style="font-size:11px;color:#6b7280;">${escapeHtml(date)} · ${issue.comments} ${issue.comments === 1 ? "comment" : "comments"} · </span><span style="font-size:11px;color:${assignmentColor};font-weight:600;">${issue.assigned ? "assigned" : "unassigned"}</span></td></tr>${labelRow}</table></td></tr></table>`;
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#161b26;border-radius:8px;margin-bottom:10px;"><tr><td style="padding:14px 16px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td><a href="${escapeHtml(issue.url)}" class="issue-title-mobile" style="font-size:14.5px;font-weight:700;color:#f4f5f7;line-height:1.4;text-decoration:none;">${escapeHtml(issue.title)}</a></td></tr><tr><td style="padding-top:6px;"><p style="margin:0;font-size:13px;line-height:1.55;color:#9ca3af;">${escapeHtml(issue.summary)}</p></td></tr><tr><td style="padding-top:10px;"><span style="font-size:11px;color:#a78bfa;font-weight:600;">${qualityScore} quality</span><span style="font-size:11px;color:#6b7280;"> · ${escapeHtml(healthText)} · ${escapeHtml(date)} · ${issue.comments} ${issue.comments === 1 ? "comment" : "comments"} · </span><span style="font-size:11px;color:${assignmentColor};font-weight:600;">${issue.assigned ? "assigned" : "unassigned"}</span></td></tr>${labelRow}</table></td></tr></table>`;
 }
 
 export async function buildRepositoryDigest(
@@ -67,8 +78,9 @@ export async function buildRepositoryDigest(
   const issueCount = results.reduce((count, result) => count + result.issues.length, 0);
   const sections = results
     .map(({ repository, issues, responsiveness }) => {
+      const responsivenessBoost = getResponsivenessBoost(responsiveness.status);
       const issueItems = issues.length
-        ? issues.map(issueCard).join("")
+        ? issues.map((issue) => issueCard(issue, responsivenessBoost)).join("")
         : `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#161b26;border-radius:8px;"><tr><td style="padding:14px 16px;font-size:13px;color:#9ca3af;">No open issues found.</td></tr></table>`;
       const issueLabel = `${issues.length} ${issues.length === 1 ? "issue" : "issues"}`;
       const responsivenessLabel = `${responsiveness.status[0].toUpperCase()}${responsiveness.status.slice(1)}`;

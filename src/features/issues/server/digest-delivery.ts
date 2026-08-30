@@ -182,34 +182,28 @@ export async function deliverWeeklyDigest(
 
   if (!searches.length && !repositories.length) return false;
 
-  const digest = searches.length
-    ? await buildWeeklyDigest(
-        searches.map((search) => ({
-          ...search,
-          createdAt: search.createdAt.toISOString(),
-        })),
-        baseUrl,
-        context.previousTrends,
-        context.weekStart,
-      )
-    : { subject: "Your repository alerts", html: "", issueCount: 0, trends: [] };
-  const repositoryDigest = repositories.length
-    ? await buildRepositoryDigest(repositories)
-    : null;
+  const [digest, repositoryDigest] = await Promise.all([
+    searches.length
+      ? buildWeeklyDigest(
+          searches.map((search) => ({
+            ...search,
+            createdAt: search.createdAt.toISOString(),
+          })),
+          baseUrl,
+          context.previousTrends,
+          context.weekStart,
+        )
+      : Promise.resolve({
+          subject: "Your repository alerts",
+          html: "",
+          issueCount: 0,
+          trends: [],
+        }),
+    repositories.length ? buildRepositoryDigest(repositories) : Promise.resolve(null),
+  ]);
 
   if (!searches.length && repositoryDigest && !repositoryDigest.changed) {
     return false;
-  }
-
-  for (const trend of digest.trends) {
-    const id = createHash("sha256")
-      .update(`${trend.searchKey}:${trend.weekStart.toISOString()}`)
-      .digest("hex");
-
-    await database
-      .insert(digestTrendSnapshot)
-      .values({ id, ...trend })
-      .onConflictDoNothing();
   }
 
   const savedSearchContent = searches.length
@@ -233,25 +227,40 @@ export async function deliverWeeklyDigest(
         })
       : digest.html,
   });
-  for (const snapshot of repositoryDigest?.snapshots ?? []) {
-    await database
-      .update(repositoryDigestRepository)
-      .set({ lastIssueIds: snapshot.issueIds })
-      .where(eq(repositoryDigestRepository.id, snapshot.id));
-  }
   const sentAt = new Date();
-  if (searches.length) {
-    await database
-      .update(user)
-      .set({ weeklyDigestLastSentAt: sentAt })
-      .where(eq(user.id, recipient.id));
-  }
-  if (template && repositoryDigest) {
-    await database
-      .update(repositoryDigestTemplate)
-      .set({ lastSentAt: sentAt })
-      .where(eq(repositoryDigestTemplate.id, template.id));
-  }
+  await Promise.all([
+    ...digest.trends.map((trend) => {
+      const id = createHash("sha256")
+        .update(`${trend.searchKey}:${trend.weekStart.toISOString()}`)
+        .digest("hex");
+
+      return database
+        .insert(digestTrendSnapshot)
+        .values({ id, ...trend })
+        .onConflictDoNothing();
+    }),
+    ...(repositoryDigest?.snapshots ?? []).map((snapshot) =>
+      database
+        .update(repositoryDigestRepository)
+        .set({ lastIssueIds: snapshot.issueIds })
+        .where(eq(repositoryDigestRepository.id, snapshot.id))),
+    ...(searches.length
+      ? [
+          database
+            .update(user)
+            .set({ weeklyDigestLastSentAt: sentAt })
+            .where(eq(user.id, recipient.id)),
+        ]
+      : []),
+    ...(template && repositoryDigest
+      ? [
+          database
+            .update(repositoryDigestTemplate)
+            .set({ lastSentAt: sentAt })
+            .where(eq(repositoryDigestTemplate.id, template.id)),
+        ]
+      : []),
+  ]);
 
   return true;
 }

@@ -667,7 +667,19 @@ describe("repository digest GitHub queries", () => {
     );
     const fetchMock = vi
       .fn()
-      .mockResolvedValue(jsonResponse({ total_count: 6, items: issues }));
+      .mockResolvedValueOnce(jsonResponse({ total_count: 6, items: issues }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          full_name: "acme/widgets",
+          html_url: "https://github.com/acme/widgets",
+          stargazers_count: 2500,
+          archived: false,
+          pushed_at: "2026-08-29T00:00:00Z",
+          open_issues_count: 20,
+          forks_count: 100,
+          has_issues: true,
+        }),
+      );
     vi.stubGlobal("fetch", fetchMock);
 
     const result = await getRecentRepositoryIssues("acme/widgets");
@@ -675,9 +687,33 @@ describe("repository digest GitHub queries", () => {
     expect(result[0]).toMatchObject({
       summary: "A concise summary",
       assigned: true,
+      qualityScore: expect.any(Number),
+      repositoryHealth: expect.objectContaining({ label: "active" }),
     });
     expect(result[1].summary).toBe("No description provided.");
     expect(String(fetchMock.mock.calls[0][0])).toContain("is%3Aopen");
+    expect(String(fetchMock.mock.calls[1][0])).toContain("repos/acme/widgets");
+  });
+
+  it("keeps repository digest issues when health enrichment fails", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({ total_count: 1, items: [githubIssue()] }),
+      )
+      .mockResolvedValueOnce(new Response("unavailable", { status: 503 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await getRecentRepositoryIssues("acme/widgets");
+
+    expect(result[0]).toMatchObject({
+      qualityScore: expect.any(Number),
+      repositoryHealth: {
+        score: null,
+        label: "unknown",
+        signals: ["Repository metadata unavailable"],
+      },
+    });
   });
 });
 
