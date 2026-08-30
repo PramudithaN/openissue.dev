@@ -17,6 +17,8 @@ const {
   updateDigestPreference,
   updateAlertEmail,
   useSession,
+  getOpportunities,
+  updateOpportunity,
 } = vi.hoisted(() => ({
   addSavedSearch: vi.fn(),
   deleteSavedSearch: vi.fn(),
@@ -30,6 +32,8 @@ const {
   updateDigestPreference: vi.fn(),
   updateAlertEmail: vi.fn(),
   useSession: vi.fn(),
+  getOpportunities: vi.fn(),
+  updateOpportunity: vi.fn(),
 }));
 
 vi.mock("@/features/issues/lib/saved-searches", () => ({
@@ -52,6 +56,11 @@ vi.mock("@/features/issues/lib/digest-preference-cloud", () => ({
   updateAlertEmail,
 }));
 
+vi.mock("@/features/issues/lib/opportunity-cloud", () => ({
+  getOpportunities,
+  updateOpportunity,
+}));
+
 vi.mock("@/lib/auth-client", () => ({
   authClient: {
     useSession,
@@ -62,6 +71,10 @@ vi.mock("@/lib/auth-client", () => ({
 
 vi.mock("@/components/theme-toggle", () => ({
   ThemeToggle: () => <button type="button">Theme</button>,
+}));
+
+vi.mock("@/features/issues/components/contribution-history", () => ({
+  ContributionHistory: () => <div>Contribution history</div>,
 }));
 
 vi.mock("@/components/ui/select", () => ({
@@ -127,6 +140,8 @@ beforeEach(() => {
   updateDigestPreference.mockReset().mockResolvedValue(true);
   updateAlertEmail.mockReset().mockResolvedValue("");
   useSession.mockReset().mockReturnValue({ data: null, isPending: false });
+  getOpportunities.mockReset().mockResolvedValue([]);
+  updateOpportunity.mockReset().mockResolvedValue(null);
   vi.stubGlobal("fetch", vi.fn());
 });
 
@@ -136,6 +151,30 @@ afterEach(() => {
 });
 
 describe("IssueFinder", () => {
+  it("defaults to results and mounts contribution history only after tab selection", () => {
+    useSession.mockReturnValue({
+      data: { user: { id: "user-1", name: "Octo Cat" } },
+      isPending: false,
+    });
+
+    render(<IssueFinder />);
+
+    expect(
+      screen.getByRole("tab", { name: "Ranked issues" }).getAttribute(
+        "aria-selected",
+      ),
+    ).toBe("true");
+    expect(screen.queryByText("Contribution history", { selector: "div" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Contribution history" }));
+    expect(screen.getByText("Contribution history", { selector: "div" })).toBeTruthy();
+    expect(
+      screen.getByRole("tab", { name: "Contribution history" }).getAttribute(
+        "aria-selected",
+      ),
+    ).toBe("true");
+  });
+
   it("restores and caches account searches after sign-in", async () => {
     const saved = {
       id: "saved-cloud",
@@ -423,6 +462,54 @@ describe("IssueFinder", () => {
     fireEvent.click(screen.getByRole("button", { name: "Load More" }));
     expect(await screen.findByText("Issue 25")).toBeTruthy();
     expect(fetchMock.mock.calls[1][0]).toContain("page=2");
+  });
+
+  it("restores and updates saved opportunities for authenticated users", async () => {
+    useSession.mockReturnValue({
+      data: { user: { id: "user-1", name: "Octo Cat" } },
+      isPending: false,
+    });
+    getOpportunities.mockResolvedValue([
+      {
+        id: "opportunity-1",
+        repositoryFullName: "acme/repo",
+        issueNumber: 1,
+        issueUrl: "https://github.com/acme/repo/issues/1",
+        title: "Issue 1",
+        savedAt: "2026-08-20T00:00:00.000Z",
+        openedAt: null,
+      },
+    ]);
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      if (String(input).startsWith("/api/search?")) {
+        return jsonResponse(response()) as any;
+      }
+
+      return {
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          isAdmin: false,
+          template: null,
+        }),
+      } as any;
+    });
+
+    render(<IssueFinder />);
+    fireEvent.submit(screen.getByRole("button", { name: "Search" }).closest("form")!);
+    expect(await screen.findByRole("button", { name: "Saved" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Saved" }));
+    await waitFor(() =>
+      expect(updateOpportunity).toHaveBeenCalledWith(issue(1, 0), "unsave"),
+    );
+    const issueLink = screen
+      .getAllByRole("link", { name: "Open issue" })
+      .find((link) => link.getAttribute("href") === issue(1).url);
+    expect(issueLink).toBeTruthy();
+    fireEvent.click(issueLink!);
+    await waitFor(() =>
+      expect(updateOpportunity).toHaveBeenCalledWith(issue(1, 0), "open"),
+    );
   });
 
   it("handles empty searches and API failures", async () => {

@@ -134,6 +134,37 @@ export const savedSearch = sqliteTable(
   (table) => [index("saved_search_userId_idx").on(table.userId)],
 );
 
+export const opportunity = sqliteTable(
+  "opportunity",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    repositoryFullName: text("repository_full_name").notNull(),
+    issueNumber: integer("issue_number").notNull(),
+    issueUrl: text("issue_url").notNull(),
+    title: text("title").notNull(),
+    savedAt: integer("saved_at", { mode: "timestamp_ms" }),
+    openedAt: integer("opened_at", { mode: "timestamp_ms" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("opportunity_user_repository_issue_uidx").on(
+      table.userId,
+      table.repositoryFullName,
+      table.issueNumber,
+    ),
+    index("opportunity_user_id_idx").on(table.userId),
+  ],
+);
+
 export const digestTrendSnapshot = sqliteTable(
   "digest_trend_snapshot",
   {
@@ -214,6 +245,7 @@ export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),
   savedSearches: many(savedSearch),
+  opportunities: many(opportunity),
 }));
 
 export const sessionRelations = relations(session, ({ one }) => ({
@@ -233,6 +265,13 @@ export const accountRelations = relations(account, ({ one }) => ({
 export const savedSearchRelations = relations(savedSearch, ({ one }) => ({
   user: one(user, {
     fields: [savedSearch.userId],
+    references: [user.id],
+  }),
+}));
+
+export const opportunityRelations = relations(opportunity, ({ one }) => ({
+  user: one(user, {
+    fields: [opportunity.userId],
     references: [user.id],
   }),
 }));

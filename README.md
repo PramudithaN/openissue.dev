@@ -9,6 +9,8 @@
 - Sorts and ranks results using activity, repository, assignment, and discussion signals
 - Supports reusable saved searches without requiring an account
 - Adds GitHub sign-in for cloud-backed saved searches that survive cleared browser storage
+- Shows signed-in users their public GitHub issue and pull-request history
+- Links authored issues to opportunities saved or opened through OpenIssue.dev
 - Sends optional weekly email digests based on cloud-backed saved searches
 - Supports an editable repository-alert template with up to five repositories and five recent issues from each
 - Provides light, dark, and system themes with a responsive interface

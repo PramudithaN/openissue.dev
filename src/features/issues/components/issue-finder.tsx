@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { Bookmark, Mail, Search, Trash2 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -45,6 +45,7 @@ import { LoadingResults } from "@/features/issues/components/loading-results";
 import { Metric } from "@/features/issues/components/metric";
 import { RepositoryDigestCard } from "@/features/issues/components/repository-digest-card";
 import { AdminEmailCard } from "@/features/issues/components/admin-email-card";
+import { ContributionHistory } from "@/features/issues/components/contribution-history";
 import {
   HACKTOBERFEST_OPTIONS,
   LABEL_OPTIONS,
@@ -56,6 +57,10 @@ import { compactNumber } from "@/features/issues/lib/format";
 import { mergeRankedIssues, rankIssues } from "@/features/issues/lib/ranking";
 import type { SearchResponse, Issue } from "@/features/issues/types/search";
 import { authClient } from "@/lib/auth-client";
+import {
+  getOpportunities,
+  updateOpportunity,
+} from "@/features/issues/lib/opportunity-cloud";
 
 function DigestControls({
   linkedEmail,
@@ -177,6 +182,135 @@ function SearchSummary({
   );
 }
 
+type ContentTab = "results" | "contributions";
+
+function RankedIssuesPanel({
+  error,
+  data,
+  issues,
+  isLoading,
+  hasMore,
+  isLoadingMore,
+  savedOpportunityUrls,
+  onIssueOpen,
+  onIssueSaveChange,
+  onLoadMore,
+}: Readonly<{
+  error: string | null;
+  data: SearchResponse | null;
+  issues: Issue[];
+  isLoading: boolean;
+  hasMore: boolean;
+  isLoadingMore: boolean;
+  savedOpportunityUrls: ReadonlySet<string>;
+  onIssueOpen?: (issue: Issue) => void;
+  onIssueSaveChange?: (issue: Issue, saved: boolean) => void;
+  onLoadMore: () => void;
+}>) {
+  return (
+    <div
+      id="ranked-issues-panel"
+      role="tabpanel"
+      aria-label="Ranked issues"
+      className="space-y-4"
+    >
+      <SearchSummary error={error} data={data} />
+      {isLoading ? <LoadingResults /> : null}
+      {!isLoading && data && issues.length === 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">No matching issues</CardTitle>
+            <CardDescription>
+              Try a broader technology, another label, or recently updated sorting.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      ) : null}
+      {!isLoading
+        ? issues.map((issue) => (
+            <IssueCard
+              key={issue.id}
+              issue={issue}
+              isSaved={savedOpportunityUrls.has(issue.url)}
+              onOpen={onIssueOpen}
+              onSaveChange={onIssueSaveChange}
+            />
+          ))
+        : null}
+      {!isLoading && hasMore ? (
+        <div className="flex justify-center pt-4">
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            onClick={onLoadMore}
+            disabled={isLoadingMore}
+            className="w-full max-w-[200px]"
+          >
+            {isLoadingMore ? "Loading more..." : "Load More"}
+          </Button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function IssueContentTabs({
+  activeTab,
+  authenticated,
+  contributionRevision,
+  onTabChange,
+  rankedIssuesPanel,
+}: Readonly<{
+  activeTab: ContentTab;
+  authenticated: boolean;
+  contributionRevision: number;
+  onTabChange: (tab: ContentTab) => void;
+  rankedIssuesPanel: ReactNode;
+}>) {
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-2 border-b pb-3" role="tablist" aria-label="Issue activity">
+        <Button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "results"}
+          aria-controls="ranked-issues-panel"
+          variant={activeTab === "results" ? "default" : "outline"}
+          size="sm"
+          onClick={() => onTabChange("results")}
+        >
+          Ranked issues
+        </Button>
+        {authenticated ? (
+          <Button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "contributions"}
+            aria-controls="contribution-history-panel"
+            variant={activeTab === "contributions" ? "default" : "outline"}
+            size="sm"
+            onClick={() => onTabChange("contributions")}
+          >
+            Contribution history
+          </Button>
+        ) : null}
+      </div>
+      {activeTab === "contributions" && authenticated ? (
+        <div
+          id="contribution-history-panel"
+          role="tabpanel"
+          aria-label="Contribution history"
+        >
+          <ContributionHistory key={contributionRevision} />
+        </div>
+      ) : (
+        rankedIssuesPanel
+      )}
+    </div>
+  );
+}
+
 export function IssueFinder() {
   const { data: session, isPending: isSessionPending } = authClient.useSession();
   const [tech, setTech] = useState("Java");
@@ -198,6 +332,12 @@ export function IssueFinder() {
   const [isDigestPending, setIsDigestPending] = useState(false);
   const [digestStatus, setDigestStatus] = useState<string | null>(null);
   const [alertEmail, setAlertEmail] = useState("");
+  const [savedOpportunityUrls, setSavedOpportunityUrls] = useState<Set<string>>(
+    new Set(),
+  );
+  const [opportunityRevision, setOpportunityRevision] = useState(0);
+  const [activeContentTab, setActiveContentTab] = useState<ContentTab>("results");
+  const selectedContentTab = session?.user.id ? activeContentTab : "results";
 
   useEffect(() => {
     // Hydration must start with the server's empty snapshot before reading browser storage.
@@ -253,6 +393,58 @@ export function IssueFinder() {
       cancelled = true;
     };
   }, [isSessionPending, session?.user.id]);
+
+  useEffect(() => {
+    if (isSessionPending || !session?.user.id) return;
+
+    let cancelled = false;
+    void getOpportunities()
+      .then((opportunities) => {
+        if (!cancelled) {
+          setSavedOpportunityUrls(
+            new Set(
+              opportunities
+                .filter((opportunity) => opportunity.savedAt)
+                .map((opportunity) => opportunity.issueUrl),
+            ),
+          );
+        }
+      })
+      .catch(() => {
+        // Issue discovery remains available if opportunity history cannot load.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isSessionPending, session?.user.id]);
+
+  async function handleOpportunitySave(issue: Issue, saved: boolean) {
+    try {
+      await updateOpportunity(issue, saved ? "save" : "unsave");
+      setSavedOpportunityUrls((current) => {
+        const next = new Set(current);
+        if (saved) next.add(issue.url);
+        else next.delete(issue.url);
+        return next;
+      });
+      setOpportunityRevision((current) => current + 1);
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Unable to update the opportunity.",
+      );
+    }
+  }
+
+  function handleOpportunityOpen(issue: Issue) {
+    void updateOpportunity(issue, "open")
+      .then(() => setOpportunityRevision((current) => current + 1))
+      .catch(() => {
+        // Opening GitHub should not be blocked if activity tracking fails.
+      });
+  }
 
   useEffect(() => {
     if (isSessionPending || !session?.user.id) return;
@@ -467,6 +659,7 @@ export function IssueFinder() {
     }
 
     setIsLoading(true);
+    setActiveContentTab("results");
     setCooldown(true);
     setError(null);
     setIssues([]);
@@ -851,41 +1044,33 @@ export function IssueFinder() {
           ) : null}
         </aside>
 
-        <div className="space-y-4">
-          <SearchSummary error={error} data={data} />
-
-          {isLoading ? <LoadingResults /> : null}
-
-          {!isLoading && data && issues.length === 0 ? (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">No matching issues</CardTitle>
-                <CardDescription>
-                  Try a broader technology, another label, or recently updated
-                  sorting.
-                </CardDescription>
-              </CardHeader>
-            </Card>
-          ) : null}
-
-          {!isLoading &&
-            issues.map((issue) => <IssueCard key={issue.id} issue={issue} />)}
-
-          {!isLoading && hasMore && (
-            <div className="flex justify-center pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                size="lg"
-                onClick={loadMoreIssues}
-                disabled={isLoadingMore}
-                className="w-full max-w-[200px]"
-              >
-                {isLoadingMore ? "Loading more..." : "Load More"}
-              </Button>
-            </div>
-          )}
-        </div>
+        <IssueContentTabs
+          activeTab={selectedContentTab}
+          authenticated={Boolean(session?.user.id)}
+          contributionRevision={opportunityRevision}
+          onTabChange={setActiveContentTab}
+          rankedIssuesPanel={
+            <RankedIssuesPanel
+              error={error}
+              data={data}
+              issues={issues}
+              isLoading={isLoading}
+              hasMore={hasMore}
+              isLoadingMore={isLoadingMore}
+              savedOpportunityUrls={savedOpportunityUrls}
+              onIssueOpen={
+                session?.user.id ? handleOpportunityOpen : undefined
+              }
+              onIssueSaveChange={
+                session?.user.id
+                  ? (selectedIssue, saved) =>
+                      void handleOpportunitySave(selectedIssue, saved)
+                  : undefined
+              }
+              onLoadMore={() => void loadMoreIssues()}
+            />
+          }
+        />
       </section>
     </main>
   );

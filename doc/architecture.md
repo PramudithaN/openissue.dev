@@ -18,6 +18,8 @@ flowchart LR
     AuthAPI["/api/auth/*"]
     BetterAuth[Better Auth]
     SavedAPI["/api/saved-searches"]
+    ContributionAPI["GET /api/contributions"]
+    OpportunityAPI["/api/opportunities"]
     DigestAPI["/api/digest-preference"]
     DigestCron["Weekly digest cron"]
     Drizzle[Drizzle ORM]
@@ -39,6 +41,13 @@ flowchart LR
   AuthAPI --> BetterAuth
   BetterAuth <--> GitHubOAuth
   BetterAuth --> Drizzle
+  UI -->|Load signed-in user's activity| ContributionAPI
+  ContributionAPI --> BetterAuth
+  ContributionAPI --> Drizzle
+  ContributionAPI -->|OAuth-authenticated activity search| GitHubAPI
+  UI -->|Save or open an issue| OpportunityAPI
+  OpportunityAPI --> BetterAuth
+  OpportunityAPI --> Drizzle
 
   Local -->|Signed-in synchronization| SavedAPI
   SavedAPI -->|Validate session| BetterAuth
@@ -83,9 +92,34 @@ Saved searches use a hybrid persistence model:
 - API queries and deletes are scoped to the authenticated user ID.
 - Local data remains usable if cloud synchronization is temporarily unavailable.
 
+## Contribution history
+
+Authenticated users can view public GitHub issues and pull requests they opened,
+ordered by the most recently updated activity. The protected contribution route
+loads the user's stored GitHub OAuth token, resolves the current GitHub login,
+and returns paginated GitHub search results with repository, type, status, and
+direct links. Contribution history is shown in a separate authenticated tab and
+is fetched only after that tab is selected. Ranked issue results remain the
+default tab. Requests use the user's token and are not cached.
+
+Individual opportunities are stored separately from saved-search filters. When a
+signed-in user saves an issue or follows its GitHub link, `/api/opportunities`
+upserts one compact record containing its canonical repository, issue number,
+URL, title, and interaction timestamps. The unique user/repository/issue key
+prevents repeated opens from creating duplicate rows. Contribution history is
+still fetched live and is never copied into the database.
+
+An authored issue is annotated when its canonical URL matches a saved or opened
+opportunity. Pull requests are not matched by number alone because GitHub issue
+and pull-request numbers can collide without representing related work.
+
 ## Data model
 
-The database contains Better Auth's `user`, `session`, `account`, and `verification` tables plus `saved_search`. Saved searches reference `user.id` with cascading deletion and store the selected filter values and creation timestamp.
+The database contains Better Auth's `user`, `session`, `account`, and
+`verification` tables plus application-owned saved searches, opportunities,
+digest preferences, and repository-alert records. Opportunities reference
+`user.id` with cascading deletion and store only compact issue identifiers and
+interaction timestamps; GitHub contribution payloads are not persisted.
 
 Schema definitions live in `src/lib/auth-schema.ts`; executable SQL is versioned under `db/migrations/`.
 
