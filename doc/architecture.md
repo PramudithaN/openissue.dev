@@ -64,7 +64,7 @@ flowchart LR
 
 `GET /api/search` validates and rate-limits requests before querying GitHub. Languages use GitHub language qualifiers; framework and ecosystem terms such as React, Next.js, Spring Boot, and Kubernetes use repository topics.
 
-Candidate issues are enriched where possible with repository metadata, recent discussion, assignment state, linked pull requests, and Hacktoberfest signals. The application ranks them for contributor relevance and returns paginated results to the browser.
+Candidate issues are enriched where possible with repository metadata, recent discussion, assignment state, linked pull requests, and Hacktoberfest signals. Repository health uses recent pushes, open issue and pull-request activity, stars, forks, and issue-tracker availability to distinguish active, moderate, and stale projects. The health score contributes a small optional boost to issue quality ranking and is shown directly on issue cards. The application ranks the enriched results for contributor relevance and returns paginated results to the browser.
 
 Search filters currently include:
 

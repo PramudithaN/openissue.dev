@@ -7,6 +7,7 @@ import {
   TOPIC_ALIASES,
 } from "@/features/issues/data/search-options";
 import { rankIssues } from "@/features/issues/lib/ranking";
+import { scoreRepositoryHealth } from "@/features/issues/lib/repository-health";
 import type {
   GitHubIssue,
   GitHubRepo,
@@ -498,6 +499,7 @@ export async function searchGitHubIssues({
         helpStatus = "claimed";
       }
       const hacktoberfestSource = getHacktoberfestSource(issue, repo);
+      const repositoryHealth = scoreRepositoryHealth(repo);
 
       return {
         id: issue.html_url,
@@ -515,7 +517,10 @@ export async function searchGitHubIssues({
         hacktoberfest: Boolean(hacktoberfestSource),
         hacktoberfestSource,
         helpStatus,
-        qualityScore: scoreIssue(issue, repo, helpStatus, Boolean(hacktoberfestSource)),
+        qualityScore:
+          scoreIssue(issue, repo, helpStatus, Boolean(hacktoberfestSource)) +
+          Math.round((repositoryHealth.score ?? 0) / 10),
+        repositoryHealth,
       };
     }).filter((issue) => hacktoberfest !== "only" || issue.hacktoberfest),
   );

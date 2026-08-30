@@ -6,7 +6,8 @@
 
 - Searches live GitHub issues by language or ecosystem topic
 - Filters by contributor-friendly label, linked pull requests, and Hacktoberfest readiness
-- Sorts and ranks results using activity, repository, assignment, and discussion signals
+- Scores repository health from maintenance and contributor-activity signals
+- Sorts and ranks results using issue quality and repository health
 - Supports reusable saved searches without requiring an account
 - Adds GitHub sign-in for cloud-backed saved searches that survive cleared browser storage
 - Shows signed-in users their public GitHub issue and pull-request history

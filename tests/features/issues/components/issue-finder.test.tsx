@@ -1,8 +1,20 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ReactElement } from "react";
+import {
+  cleanup,
+  fireEvent,
+  render as testingLibraryRender,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import type { Issue, SearchResponse } from "@/features/issues/types/search";
+
+function render(ui: ReactElement) {
+  return testingLibraryRender(<TooltipProvider>{ui}</TooltipProvider>);
+}
 
 const {
   addSavedSearch,
@@ -106,6 +118,7 @@ function issue(id: number, qualityScore = 50): Issue {
     hacktoberfest: false,
     hacktoberfestSource: null,
     qualityScore,
+    repositoryHealth: { score: 65, label: "moderate", signals: [] },
     helpStatus: "open",
   };
 }

@@ -1,4 +1,5 @@
 import {
+  Activity,
   ArrowUpRight,
   Bookmark,
   Clock3,
@@ -15,8 +16,107 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { compactNumber, relativeDate } from "@/features/issues/lib/format";
-import type { Issue } from "@/features/issues/types/search";
+import type {
+  Issue,
+  RepositoryHealth,
+} from "@/features/issues/types/search";
+
+function getQualityBadgeClassName(qualityScore: number) {
+  if (qualityScore >= 70) {
+    return "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20";
+  }
+
+  if (qualityScore >= 40) {
+    return "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20";
+  }
+
+  return "bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20";
+}
+
+function getRepositoryHealthClassName(label: RepositoryHealth["label"]) {
+  switch (label) {
+    case "active":
+      return "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400";
+    case "moderate":
+      return "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-400";
+    case "stale":
+      return "border-rose-500/20 bg-rose-500/10 text-rose-700 dark:text-rose-400";
+    default:
+      return "";
+  }
+}
+
+function getRepositoryHealthText(health: RepositoryHealth) {
+  if (health.score === null) {
+    return "Health unknown";
+  }
+
+  return `${health.score} ${health.label}`;
+}
+
+function RepositoryHealthTooltip({ issue }: Readonly<{ issue: Issue }>) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Badge
+          variant="outline"
+          className={getRepositoryHealthClassName(issue.repositoryHealth.label)}
+          tabIndex={0}
+          title={issue.repositoryHealth.signals.join(" · ")}
+        >
+          <Activity className="h-3 w-3" />
+          {getRepositoryHealthText(issue.repositoryHealth)}
+        </Badge>
+      </TooltipTrigger>
+      <TooltipContent className="block max-w-sm space-y-2">
+        <p className="font-medium">Repository health</p>
+        <p>70+ active · 40–69 moderate · below 40 stale</p>
+        <ul className="list-disc space-y-1 pl-4">
+          {issue.repositoryHealth.signals.map((signal) => (
+            <li key={signal}>{signal}</li>
+          ))}
+        </ul>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+function QualityTooltip({ issue }: Readonly<{ issue: Issue }>) {
+  const healthBoost = Math.round((issue.repositoryHealth.score ?? 0) / 10);
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Badge
+          className={getQualityBadgeClassName(issue.qualityScore)}
+          tabIndex={0}
+        >
+          {issue.qualityScore} quality
+        </Badge>
+      </TooltipTrigger>
+      <TooltipContent className="block max-w-sm space-y-2">
+        <p className="font-medium">Issue quality ranking points</p>
+        <p>70+ strong · 40–69 promising · below 40 lower confidence</p>
+        <p>
+          Updated {relativeDate(issue.updatedAt)} ·{" "}
+          {compactNumber(issue.stars ?? 0)} stars · {issue.labels.length} labels ·{" "}
+          {issue.comments} comments ·{" "}
+          {issue.assigned ? "assigned" : "unassigned"}
+        </p>
+        <p>
+          Repository health contributes {healthBoost} points. Scores are not
+          percentages.
+        </p>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
 
 export function IssueCard({
   issue,
@@ -29,17 +129,6 @@ export function IssueCard({
   onOpen?: (issue: Issue) => void;
   onSaveChange?: (issue: Issue, saved: boolean) => void;
 }>) {
-  let qualityBadgeClassName =
-    "bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20";
-
-  if (issue.qualityScore >= 70) {
-    qualityBadgeClassName =
-      "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20";
-  } else if (issue.qualityScore >= 40) {
-    qualityBadgeClassName =
-      "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20";
-  }
-
   return (
     <Card>
       <CardHeader className="gap-3">
@@ -53,6 +142,7 @@ export function IssueCard({
             {issue.repo}
           </a>
           <div className="flex flex-wrap items-center gap-2">
+            <RepositoryHealthTooltip issue={issue} />
             {issue.hacktoberfest ? (
               <Badge className="border-sky-500/20 bg-sky-500/10 text-sky-700 dark:text-sky-400">
                 {issue.hacktoberfestSource === "repo-topic"
@@ -60,9 +150,7 @@ export function IssueCard({
                   : "Hacktoberfest label"}
               </Badge>
             ) : null}
-            <Badge className={qualityBadgeClassName}>
-              {issue.qualityScore} quality
-            </Badge>
+            <QualityTooltip issue={issue} />
             {issue.helpStatus === "open" && (
               <Badge className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20">
                 Needs Help

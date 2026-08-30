@@ -868,10 +868,9 @@ export function IssueFinder() {
 
           <Card className="self-end">
             <CardHeader>
-              <CardTitle className="text-base">Quality score</CardTitle>
+              <CardTitle className="text-base">Search overview</CardTitle>
               <CardDescription>
-                Results are boosted for recency, stars, clear labels, low
-                comment count, and unassigned issues.
+                Current filters and GitHub search coverage.
               </CardDescription>
             </CardHeader>
             <CardContent className="grid grid-cols-2 gap-3 text-sm">

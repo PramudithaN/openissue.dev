@@ -5,6 +5,12 @@ export type LabelOption = {
 
 export type IssueStatus = "open" | "claimed" | "resolved";
 
+export type RepositoryHealth = {
+  score: number | null;
+  label: "active" | "moderate" | "stale" | "unknown";
+  signals: string[];
+};
+
 export type Issue = {
   id: string;
   title: string;
@@ -21,6 +27,7 @@ export type Issue = {
   hacktoberfest: boolean;
   hacktoberfestSource: "repo-topic" | "issue-label" | null;
   qualityScore: number;
+  repositoryHealth: RepositoryHealth;
   helpStatus?: IssueStatus;
 };
 
@@ -69,6 +76,10 @@ export type GitHubRepo = {
   html_url: string;
   stargazers_count: number;
   archived: boolean;
+  pushed_at?: string | null;
+  open_issues_count?: number;
+  forks_count?: number;
+  has_issues?: boolean;
   topics?: string[];
   description?: string | null;
 };
