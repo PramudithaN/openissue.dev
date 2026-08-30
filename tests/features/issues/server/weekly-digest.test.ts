@@ -56,6 +56,7 @@ function response(): SearchResponse {
         hacktoberfest: false,
         hacktoberfestSource: null,
         qualityScore: 80,
+        repositoryHealth: { score: 80, label: "active", signals: [] },
       },
     ],
   };
@@ -151,6 +152,7 @@ describe("weekly digest", () => {
     const lowerRankedDuplicate = {
       ...response().issues[0],
       qualityScore: 20,
+      repositoryHealth: { score: 20, label: "stale", signals: [] },
     };
     const secondSearch = {
       ...savedSearch,

@@ -19,6 +19,7 @@ function issue(overrides: Partial<Issue>): Issue {
     hacktoberfest: false,
     hacktoberfestSource: null,
     qualityScore: 50,
+    repositoryHealth: { score: 65, label: "moderate", signals: [] },
     helpStatus: "open",
     ...overrides,
   };

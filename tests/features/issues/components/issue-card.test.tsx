@@ -1,11 +1,22 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import type { ReactElement } from "react";
+import {
+  cleanup,
+  fireEvent,
+  render as testingLibraryRender,
+  screen,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { IssueCard } from "@/features/issues/components/issue-card";
 import { LoadingResults } from "@/features/issues/components/loading-results";
 import { Metric } from "@/features/issues/components/metric";
 import type { Issue } from "@/features/issues/types/search";
+
+function render(ui: ReactElement) {
+  return testingLibraryRender(<TooltipProvider>{ui}</TooltipProvider>);
+}
 
 function issue(overrides: Partial<Issue> = {}): Issue {
   return {
@@ -24,6 +35,11 @@ function issue(overrides: Partial<Issue> = {}): Issue {
     hacktoberfest: true,
     hacktoberfestSource: "repo-topic",
     qualityScore: 80,
+    repositoryHealth: {
+      score: 82,
+      label: "active",
+      signals: ["Pushed within 30 days", "Issue tracker enabled"],
+    },
     helpStatus: "open",
     ...overrides,
   };
@@ -37,6 +53,10 @@ describe("issue presentation", () => {
     render(<IssueCard issue={issue()} />);
 
     expect(screen.getByText("12.5K")).toBeTruthy();
+    expect(screen.getByText("82 active")).toHaveProperty(
+      "title",
+      "Pushed within 30 days · Issue tracker enabled",
+    );
     expect(screen.getByText("Hacktoberfest repo")).toBeTruthy();
     expect(screen.getByText("Needs Help")).toBeTruthy();
     expect(screen.queryByText("hidden")).toBeNull();
@@ -53,6 +73,11 @@ describe("issue presentation", () => {
           stars: null,
           linkedPrCount: null,
           assigned: true,
+          repositoryHealth: {
+            score: 50,
+            label: "moderate",
+            signals: ["Last push 60 days ago"],
+          },
         })}
       />,
     );
@@ -69,11 +94,33 @@ describe("issue presentation", () => {
           helpStatus: "resolved",
           hacktoberfest: false,
           hacktoberfestSource: null,
+          repositoryHealth: {
+            score: 20,
+            label: "stale",
+            signals: ["No push within a year"],
+          },
         })}
       />,
     );
     expect(screen.getByText("20 quality")).toBeTruthy();
+    expect(screen.getByText("20 stale")).toBeTruthy();
     expect(screen.getByText("Likely Resolved")).toBeTruthy();
+  });
+
+  it("renders unknown repository health", () => {
+    render(
+      <IssueCard
+        issue={issue({
+          repositoryHealth: {
+            score: null,
+            label: "unknown",
+            signals: ["Repository metadata unavailable"],
+          },
+        })}
+      />,
+    );
+
+    expect(screen.getByText("Health unknown")).toBeTruthy();
   });
 
   it("renders loading placeholders and metrics", () => {
