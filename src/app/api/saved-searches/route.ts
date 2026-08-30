@@ -39,6 +39,9 @@ async function listSavedSearches(userId: string): Promise<SavedSearch[]> {
     sort: row.sort,
     linkedPr: row.linkedPr,
     hacktoberfest: row.hacktoberfest,
+    experience: row.experience,
+    contributionType: row.contributionType,
+    scope: row.scope,
     createdAt: row.createdAt.toISOString(),
   }));
 }

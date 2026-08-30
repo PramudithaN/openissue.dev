@@ -1,11 +1,18 @@
 import {
+  CONTRIBUTION_TYPE_FILTERS,
+  EXPERIENCE_FILTERS,
   GITHUB_LABELS,
   GITHUB_SORTS,
   HACKTOBERFEST_FILTERS,
   LINKED_PR_FILTERS,
   LANGUAGE_ALIASES,
+  SCOPE_FILTERS,
   TOPIC_ALIASES,
 } from "@/features/issues/data/search-options";
+import {
+  classifyIssue,
+  matchesClassification,
+} from "@/features/issues/lib/issue-classification";
 import { rankIssues } from "@/features/issues/lib/ranking";
 import { scoreRepositoryHealth } from "@/features/issues/lib/repository-health";
 import type {
@@ -334,6 +341,9 @@ export async function searchGitHubIssues({
   sort: rawSort,
   linkedPr: rawLinkedPr,
   hacktoberfest: rawHacktoberfest,
+  experience: rawExperience,
+  contributionType: rawContributionType,
+  scope: rawScope,
   updatedAfter,
   updatedBefore,
   page = 1,
@@ -343,6 +353,9 @@ export async function searchGitHubIssues({
   sort: string | null;
   linkedPr: string | null;
   hacktoberfest?: string | null;
+  experience?: string | null;
+  contributionType?: string | null;
+  scope?: string | null;
   updatedAfter?: string;
   updatedBefore?: string;
   page?: number;
@@ -360,6 +373,17 @@ export async function searchGitHubIssues({
     HACKTOBERFEST_FILTERS,
     "any",
   );
+  const experience = resolveSearchOption(
+    rawExperience,
+    EXPERIENCE_FILTERS,
+    "any",
+  );
+  const contributionType = resolveSearchOption(
+    rawContributionType,
+    CONTRIBUTION_TYPE_FILTERS,
+    "any",
+  );
+  const scope = resolveSearchOption(rawScope, SCOPE_FILTERS, "any");
   const token = process.env.GITHUB_TOKEN;
   const repoTopicQuery = buildRepoTopicQuery(tech);
   let matchingRepos: GitHubRepo[] = [];
@@ -585,6 +609,7 @@ export async function searchGitHubIssues({
       }
       const hacktoberfestSource = getHacktoberfestSource(issue, repo);
       const repositoryHealth = scoreRepositoryHealth(repo);
+      const classification = classifyIssue(issue);
 
       return {
         id: issue.html_url,
@@ -602,6 +627,7 @@ export async function searchGitHubIssues({
         hacktoberfest: Boolean(hacktoberfestSource),
         hacktoberfestSource,
         helpStatus,
+        classification,
         qualityScore:
           scoreIssue(issue, repo, helpStatus, Boolean(hacktoberfestSource)) +
           Math.round((repositoryHealth.score ?? 0) / 10),
@@ -615,7 +641,19 @@ export async function searchGitHubIssues({
           linkedPullRequests: false,
         },
       };
-    }).filter((issue) => hacktoberfest !== "only" || issue.hacktoberfest),
+    }).filter(
+      (issue) =>
+        (hacktoberfest !== "only" || issue.hacktoberfest) &&
+        Boolean(
+          issue.classification &&
+            matchesClassification(
+              issue.classification,
+              experience,
+              contributionType,
+              scope,
+            ),
+        ),
+    ),
     sort,
   );
   const start = (page - 1) * PAGE_SIZE;

@@ -83,6 +83,41 @@ describe("personalized recommendations", () => {
     ]);
   });
 
+  it("preserves classification filters and explains their matches", async () => {
+    mockedSearch.mockResolvedValue({
+      query: "query",
+      totalCount: 1,
+      candidateCount: 1,
+      rateLimitRemaining: "100",
+      tokenConfigured: true,
+      issues: [issue(1)],
+      page: 1,
+    });
+    const preference = {
+      ...savedSearch("filtered", "React", "bug", "2026-08-29T00:00:00.000Z"),
+      experience: "beginner",
+      contributionType: "bugfix",
+      scope: "small",
+    };
+
+    const result = await buildPersonalizedRecommendations([preference], []);
+
+    expect(mockedSearch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        experience: "beginner",
+        contributionType: "bugfix",
+        scope: "small",
+      }),
+    );
+    expect(result.recommendations[0].matchSignals).toEqual([
+      "Technology: React",
+      "Label: bug",
+      "Experience: beginner",
+      "Contribution type: bugfix",
+      "Scope: small",
+    ]);
+  });
+
   it("excludes prior opportunities and boosts familiar repositories", async () => {
     mockedSearch.mockResolvedValue({
       query: "query",

@@ -224,6 +224,15 @@ export function IssueCard({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        {issue.classification?.signals.length ? (
+          <div className="flex flex-wrap gap-2" aria-label="Classification signals">
+            {issue.classification.signals.map((signal) => (
+              <Badge key={signal} variant="secondary">
+                {signal}
+              </Badge>
+            ))}
+          </div>
+        ) : null}
         {matchSignals.length > 0 ? (
           <div className="flex flex-wrap gap-2" aria-label="Recommendation matches">
             {matchSignals.map((signal) => (

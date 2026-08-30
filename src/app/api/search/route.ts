@@ -34,6 +34,9 @@ export async function GET(request: Request) {
       sort: searchParams.get("sort"),
       linkedPr: searchParams.get("linkedPr"),
       hacktoberfest: searchParams.get("hacktoberfest"),
+      experience: searchParams.get("experience"),
+      contributionType: searchParams.get("contributionType"),
+      scope: searchParams.get("scope"),
       page,
     });
 

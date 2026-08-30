@@ -82,6 +82,14 @@ Search filters currently include:
 - Trending, recently updated, most commented, or newest sorting
 - Any, present, or absent linked pull request
 - All issues or Hacktoberfest-ready issues
+- Any experience, first contribution, beginner, or intermediate
+- Documentation, tests, bug fix, or feature contribution type
+- All scopes or small scope
+
+Experience, contribution type, and scope classifications use explicit issue
+labels and structured issue-template fields. Results show the signals that
+produced a classification; issues without a strong matching signal remain
+unclassified instead of receiving a guessed effort estimate.
 
 Trending searches reuse the same technology and contributor-label filters, but
 limit candidates to issues updated in the last 30 days. Results are ranked with

@@ -1,7 +1,10 @@
 import {
+  CONTRIBUTION_TYPE_FILTERS,
+  EXPERIENCE_FILTERS,
   HACKTOBERFEST_FILTERS,
   LABEL_OPTIONS,
   LINKED_PR_FILTERS,
+  SCOPE_FILTERS,
   SORT_OPTIONS,
 } from "@/features/issues/data/search-options";
 
@@ -13,6 +16,9 @@ export type SavedSearch = {
   sort: string;
   linkedPr: string;
   hacktoberfest: string;
+  experience?: string;
+  contributionType?: string;
+  scope?: string;
   createdAt: string;
 };
 
@@ -24,6 +30,9 @@ export function isValidSavedSearch(value: unknown): value is SavedSearch {
   }
 
   const search = value as Partial<SavedSearch>;
+  const experience = search.experience ?? "any";
+  const contributionType = search.contributionType ?? "any";
+  const scope = search.scope ?? "any";
 
   return (
     typeof search.id === "string" &&
@@ -37,7 +46,10 @@ export function isValidSavedSearch(value: unknown): value is SavedSearch {
     LABEL_OPTIONS.some((option) => option.value === search.label) &&
     SORT_OPTIONS.some((option) => option.value === search.sort) &&
     LINKED_PR_FILTERS.has(search.linkedPr) &&
-    HACKTOBERFEST_FILTERS.has(search.hacktoberfest)
+    HACKTOBERFEST_FILTERS.has(search.hacktoberfest) &&
+    EXPERIENCE_FILTERS.has(experience) &&
+    CONTRIBUTION_TYPE_FILTERS.has(contributionType) &&
+    SCOPE_FILTERS.has(scope)
   );
 }
 

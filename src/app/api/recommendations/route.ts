@@ -68,6 +68,9 @@ export async function GET(request: Request) {
               sort: selectedSearch.sort,
               linkedPr: selectedSearch.linkedPr,
               hacktoberfest: selectedSearch.hacktoberfest,
+              experience: selectedSearch.experience,
+              contributionType: selectedSearch.contributionType,
+              scope: selectedSearch.scope,
               createdAt: selectedSearch.createdAt.toISOString(),
             },
           ]
