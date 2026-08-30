@@ -1,4 +1,11 @@
-import { ArrowUpRight, Clock3, GitPullRequest, MessageCircle, Star } from "lucide-react";
+import {
+  ArrowUpRight,
+  Bookmark,
+  Clock3,
+  GitPullRequest,
+  MessageCircle,
+  Star,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,7 +18,17 @@ import { Separator } from "@/components/ui/separator";
 import { compactNumber, relativeDate } from "@/features/issues/lib/format";
 import type { Issue } from "@/features/issues/types/search";
 
-export function IssueCard({ issue }: Readonly<{ issue: Issue }>) {
+export function IssueCard({
+  issue,
+  isSaved = false,
+  onOpen,
+  onSaveChange,
+}: Readonly<{
+  issue: Issue;
+  isSaved?: boolean;
+  onOpen?: (issue: Issue) => void;
+  onSaveChange?: (issue: Issue, saved: boolean) => void;
+}>) {
   let qualityBadgeClassName =
     "bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20";
 
@@ -101,12 +118,31 @@ export function IssueCard({ issue }: Readonly<{ issue: Issue }>) {
             <span>{issue.assigned ? "Assigned" : "Unassigned"}</span>
           </div>
 
-          <Button asChild size="sm" className="gap-2">
-            <a href={issue.url} target="_blank" rel="noreferrer">
-              Open issue
-              <ArrowUpRight className="h-4 w-4" />
-            </a>
-          </Button>
+          <div className="flex gap-2">
+            {onSaveChange ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={() => onSaveChange(issue, !isSaved)}
+              >
+                <Bookmark className={isSaved ? "h-4 w-4 fill-current" : "h-4 w-4"} />
+                {isSaved ? "Saved" : "Save"}
+              </Button>
+            ) : null}
+            <Button asChild size="sm" className="gap-2">
+              <a
+                href={issue.url}
+                target="_blank"
+                rel="noreferrer"
+                onClick={() => onOpen?.(issue)}
+              >
+                Open issue
+                <ArrowUpRight className="h-4 w-4" />
+              </a>
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>

@@ -46,6 +46,8 @@ Run the SQL migrations in filename order against the Turso database:
 4. `db/migrations/0004_repository_digest.sql`
 5. `db/migrations/0005_repository_digest_frequency.sql`
 6. `db/migrations/0006_alert_email.sql`
+7. `db/migrations/0007_admin.sql`
+8. `db/migrations/0008_opportunity.sql`
 
 The first migration creates Better Auth's user, session, account, and verification tables. The second creates user-owned saved searches. Migration files intentionally contain structure only—never credentials or production data.
 
@@ -62,6 +64,9 @@ remain restricted to Mondays. Enable 2-Step Verification for the Gmail sender, c
 Google App Password, and configure `SMTP_USER`, `SMTP_APP_PASSWORD`, and
 `DIGEST_FROM_EMAIL` before enabling digests in production. Store the App
 Password only in protected environment variables; never commit it.
+The seventh adds explicit administrator membership. The eighth stores one
+deduplicated opportunity record for each issue a signed-in user saves or opens;
+it does not store the user's GitHub contribution history.
 
 ## GitHub OAuth
 
@@ -81,8 +86,11 @@ After deploying, verify:
 1. Issue search returns live results.
 2. GitHub sign-in returns to the application.
 3. A signed-in saved search is restored after clearing local storage.
-4. Removing that search prevents it from returning after refresh.
-5. Enabling and disabling the weekly digest persists after refresh.
-6. An authorized manual request to the digest cron route sends a digest only to opted-in users with saved searches.
-7. A signed-in user with a cloud saved search can use **Send digest now** once per weekly delivery window.
-8. A signed-in user can save, reopen, revise, enable, or disable a repository-alert template containing at most five autocomplete-selected repositories and select daily, weekly, or fortnightly delivery.
+4. A signed-in user can view their public GitHub issues and pull requests with current statuses and direct links.
+5. Saving or opening the same issue repeatedly retains one opportunity record and updates its timestamps.
+6. Matching authored issues in contribution history show saved or opened badges.
+7. Removing that search prevents it from returning after refresh.
+8. Enabling and disabling the weekly digest persists after refresh.
+9. An authorized manual request to the digest cron route sends a digest only to opted-in users with saved searches.
+10. A signed-in user with a cloud saved search can use **Send digest now** once per weekly delivery window.
+11. A signed-in user can save, reopen, revise, enable, or disable a repository-alert template containing at most five autocomplete-selected repositories and select daily, weekly, or fortnightly delivery.

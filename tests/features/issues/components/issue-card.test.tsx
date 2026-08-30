@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { IssueCard } from "@/features/issues/components/issue-card";
 import { LoadingResults } from "@/features/issues/components/loading-results";
@@ -83,5 +83,23 @@ describe("issue presentation", () => {
     render(<Metric label="Ranked" value="24" />);
     expect(screen.getByText("Ranked")).toBeTruthy();
     expect(screen.getByText("24")).toBeTruthy();
+  });
+
+  it("reports authenticated save and open interactions", () => {
+    const onOpen = vi.fn();
+    const onSaveChange = vi.fn();
+    const selectedIssue = issue();
+    render(
+      <IssueCard
+        issue={selectedIssue}
+        onOpen={onOpen}
+        onSaveChange={onSaveChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.click(screen.getByRole("link", { name: "Open issue" }));
+    expect(onSaveChange).toHaveBeenCalledWith(selectedIssue, true);
+    expect(onOpen).toHaveBeenCalledWith(selectedIssue);
   });
 });
