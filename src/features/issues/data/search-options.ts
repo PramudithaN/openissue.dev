@@ -119,3 +119,15 @@ export const SCOPE_OPTIONS = [
 export const SCOPE_FILTERS = new Set(
   SCOPE_OPTIONS.map((option) => option.value),
 );
+
+export const RESPONSIVENESS_OPTIONS = [
+  { value: "any", label: "Any responsiveness" },
+  { value: "responsive", label: "Responsive maintainers" },
+  { value: "variable", label: "Variable responsiveness" },
+  { value: "slow", label: "Slow responsiveness" },
+  { value: "unknown", label: "Unknown responsiveness" },
+];
+
+export const RESPONSIVENESS_FILTERS = new Set(
+  RESPONSIVENESS_OPTIONS.map((option) => option.value),
+);

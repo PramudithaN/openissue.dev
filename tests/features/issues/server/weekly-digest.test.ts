@@ -28,6 +28,7 @@ const savedSearch = {
   sort: "updated",
   linkedPr: "any",
   hacktoberfest: "any",
+  responsiveness: "responsive",
   createdAt: "2026-08-19T00:00:00.000Z",
 };
 
@@ -57,6 +58,12 @@ function response(): SearchResponse {
         hacktoberfestSource: null,
         qualityScore: 80,
         repositoryHealth: { score: 80, label: "active", signals: [] },
+        repositoryResponsiveness: {
+          status: "responsive",
+          sampleDays: 90,
+          sampleSize: 6,
+          signals: ["Median first maintainer response: 1 day"],
+        },
       },
     ],
   };
@@ -84,6 +91,9 @@ describe("weekly digest", () => {
     expect(digest.html).toContain("tech=React");
     expect(digest.html).toContain("React &amp; docs");
     expect(digest.html).toContain("baseline recorded");
+    expect(digest.html).toContain("Responsive maintainer responsiveness");
+    expect(digest.html).toContain("6 samples over 90 days");
+    expect(digest.html).toContain("80 quality");
     expect(digest.html).toContain(
       "Leading recommendation source: acme/repo (1)",
     );
@@ -91,6 +101,7 @@ describe("weekly digest", () => {
       expect.objectContaining({
         updatedAfter: "2026-08-17",
         updatedBefore: "2026-08-23",
+        responsiveness: "responsive",
       }),
     );
   });
@@ -107,6 +118,7 @@ describe("weekly digest", () => {
       experience: "any",
       contributionType: "any",
       scope: "any",
+      responsiveness: "responsive",
     });
 
     const digest = await buildWeeklyDigest(
@@ -149,6 +161,21 @@ describe("weekly digest", () => {
     expect(getDigestSearchKey({ ...savedSearch, tech: " React " })).toContain(
       '"tech":"react"',
     );
+  });
+
+  it("shows unknown responsiveness when older issue data has no analytics", async () => {
+    const issueWithoutResponsiveness = { ...response().issues[0] };
+    delete issueWithoutResponsiveness.repositoryResponsiveness;
+    searchGitHubIssues.mockResolvedValue({
+      ...response(),
+      issues: [issueWithoutResponsiveness],
+    });
+
+    const digest = await buildWeeklyDigest([savedSearch], "https://openissue.dev/");
+
+    expect(digest.html).toContain("80 quality");
+    expect(digest.html).toContain("Unknown maintainer responsiveness");
+    expect(digest.html).not.toContain("0 samples over 90 days");
   });
 
   it("reports down and steady trends and keeps the higher-ranked duplicate", async () => {

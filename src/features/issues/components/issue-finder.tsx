@@ -59,6 +59,7 @@ import {
   HACKTOBERFEST_OPTIONS,
   LABEL_OPTIONS,
   LINKED_PR_OPTIONS,
+  RESPONSIVENESS_OPTIONS,
   SORT_OPTIONS,
   SCOPE_OPTIONS,
   TECH_EXAMPLES,
@@ -88,6 +89,7 @@ type SearchFilters = {
   experience: string;
   contributionType: string;
   scope: string;
+  responsiveness: string;
 };
 
 const DEFAULT_SEARCH_FILTERS: SearchFilters = {
@@ -99,6 +101,7 @@ const DEFAULT_SEARCH_FILTERS: SearchFilters = {
   experience: "any",
   contributionType: "any",
   scope: "any",
+  responsiveness: "any",
 };
 
 function getSupportedValue(
@@ -136,6 +139,11 @@ function getSearchFilters(search: string): SearchFilters | null {
       "any",
     ),
     scope: getSupportedValue(params.get("scope"), SCOPE_OPTIONS, "any"),
+    responsiveness: getSupportedValue(
+      params.get("responsiveness"),
+      RESPONSIVENESS_OPTIONS,
+      "any",
+    ),
   };
 }
 
@@ -149,6 +157,7 @@ function createSearchParams(filters: SearchFilters, page?: number) {
     experience: filters.experience,
     contributionType: filters.contributionType,
     scope: filters.scope,
+    responsiveness: filters.responsiveness,
     ...(page ? { page: String(page) } : {}),
   });
 }
@@ -642,6 +651,9 @@ export function IssueFinder() {
     DEFAULT_SEARCH_FILTERS.contributionType,
   );
   const [scope, setScope] = useState(DEFAULT_SEARCH_FILTERS.scope);
+  const [responsiveness, setResponsiveness] = useState(
+    DEFAULT_SEARCH_FILTERS.responsiveness,
+  );
   const [data, setData] = useState<SearchResponse | null>(null);
   const [issues, setIssues] = useState<Issue[]>([]);
   const [page, setPage] = useState(1);
@@ -684,6 +696,7 @@ export function IssueFinder() {
         setExperience(DEFAULT_SEARCH_FILTERS.experience);
         setContributionType(DEFAULT_SEARCH_FILTERS.contributionType);
         setScope(DEFAULT_SEARCH_FILTERS.scope);
+        setResponsiveness(DEFAULT_SEARCH_FILTERS.responsiveness);
         setData(null);
         setIssues([]);
         setError(null);
@@ -700,6 +713,7 @@ export function IssueFinder() {
       setExperience(linkedSearch.experience);
       setContributionType(linkedSearch.contributionType);
       setScope(linkedSearch.scope);
+      setResponsiveness(linkedSearch.responsiveness);
       void searchIssues(undefined, linkedSearch, false);
     }
 
@@ -847,6 +861,12 @@ export function IssueFinder() {
     () => SCOPE_OPTIONS.find((item) => item.value === scope) ?? SCOPE_OPTIONS[0],
     [scope],
   );
+  const selectedResponsiveness = useMemo(
+    () =>
+      RESPONSIVENESS_OPTIONS.find((item) => item.value === responsiveness) ??
+      RESPONSIVENESS_OPTIONS[0],
+    [responsiveness],
+  );
 
   const hasMore = useMemo(() => {
     if (!data) return false;
@@ -876,6 +896,7 @@ export function IssueFinder() {
         experience,
         contributionType,
         scope,
+        responsiveness,
       });
 
       setSavedSearches((current) => [...current, savedSearch]);
@@ -929,6 +950,7 @@ export function IssueFinder() {
     setExperience(savedSearch.experience ?? "any");
     setContributionType(savedSearch.contributionType ?? "any");
     setScope(savedSearch.scope ?? "any");
+    setResponsiveness(savedSearch.responsiveness ?? "any");
 
     void searchIssues(undefined, {
       tech: savedSearch.tech,
@@ -939,6 +961,7 @@ export function IssueFinder() {
       experience: savedSearch.experience ?? "any",
       contributionType: savedSearch.contributionType ?? "any",
       scope: savedSearch.scope ?? "any",
+      responsiveness: savedSearch.responsiveness ?? "any",
     });
   }
 
@@ -1019,6 +1042,8 @@ export function IssueFinder() {
     const searchContributionType =
       searchOverride?.contributionType ?? contributionType;
     const searchScope = searchOverride?.scope ?? scope;
+    const searchResponsiveness =
+      searchOverride?.responsiveness ?? responsiveness;
 
     if (!searchTech.trim()) {
       setError("Enter a technology to search.");
@@ -1041,6 +1066,7 @@ export function IssueFinder() {
       experience: searchExperience,
       contributionType: searchContributionType,
       scope: searchScope,
+      responsiveness: searchResponsiveness,
     });
     const requestId = ++searchRequestId.current;
 
@@ -1099,6 +1125,7 @@ export function IssueFinder() {
         experience,
         contributionType,
         scope,
+        responsiveness,
       },
       nextPage,
     );
@@ -1307,6 +1334,23 @@ export function IssueFinder() {
                 </SelectContent>
               </Select>
 
+              <Select value={responsiveness} onValueChange={setResponsiveness}>
+                <SelectTrigger
+                  className="h-11 w-full"
+                  size="lg"
+                  aria-label="Maintainer responsiveness filter"
+                >
+                  <SelectValue>{selectedResponsiveness.label}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {RESPONSIVENESS_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
               <Button
                 type="submit"
                 className="h-11 w-full gap-2 sm:col-span-2 lg:col-span-1"
@@ -1342,6 +1386,10 @@ export function IssueFinder() {
               <Metric label="Experience" value={selectedExperience.label} />
               <Metric label="Type" value={selectedContributionType.label} />
               <Metric label="Scope" value={selectedScope.label} />
+              <Metric
+                label="Responsiveness"
+                value={selectedResponsiveness.label}
+              />
               <Metric
                 label="Ranked"
                 value={data ? compactNumber(data.candidateCount) : "-"}

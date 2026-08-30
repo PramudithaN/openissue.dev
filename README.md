@@ -8,6 +8,7 @@
 - Filters by contributor-friendly label, linked pull requests, and Hacktoberfest readiness
 - Filters by explicit experience, contribution-type, and small-scope signals
 - Scores repository health from maintenance and contributor-activity signals
+- Summarizes maintainer responsiveness from bounded recent contribution samples
 - Sorts and ranks results using issue quality and repository health
 - Keeps successful searches in shareable, browser-navigable URLs
 - Identifies when optional GitHub enrichment is incomplete

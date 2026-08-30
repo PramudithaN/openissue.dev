@@ -11,6 +11,13 @@ export type RepositoryHealth = {
   signals: string[];
 };
 
+export type RepositoryResponsiveness = {
+  status: "responsive" | "variable" | "slow" | "unknown";
+  sampleDays: number;
+  sampleSize: number;
+  signals: string[];
+};
+
 export type EnrichmentAvailability = "complete" | "partial" | "unavailable";
 
 export type IssueEnrichment = {
@@ -50,6 +57,7 @@ export type Issue = {
   qualityScore: number;
   trendingScore?: number;
   repositoryHealth: RepositoryHealth;
+  repositoryResponsiveness?: RepositoryResponsiveness;
   enrichment?: IssueEnrichment;
   helpStatus?: IssueStatus;
   classification?: IssueClassification;

@@ -37,6 +37,7 @@ export async function GET(request: Request) {
       experience: searchParams.get("experience"),
       contributionType: searchParams.get("contributionType"),
       scope: searchParams.get("scope"),
+      responsiveness: searchParams.get("responsiveness"),
       page,
     });
 

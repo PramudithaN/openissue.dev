@@ -43,6 +43,17 @@ function searchPageResponses(items: ReturnType<typeof githubIssue>[], totalCount
   );
 }
 
+function responsivenessResponse() {
+  return jsonResponse({
+    data: {
+      repository: {
+        issues: { nodes: [] },
+        pullRequests: { nodes: [] },
+      },
+    },
+  });
+}
+
 describe("searchGitHubIssues", () => {
   beforeEach(() => {
     vi.setSystemTime(new Date("2026-06-26T12:00:00.000Z"));
@@ -75,6 +86,7 @@ describe("searchGitHubIssues", () => {
           stargazers_count: 2500,
         }),
       )
+      .mockResolvedValueOnce(responsivenessResponse())
       .mockResolvedValueOnce(
         jsonResponse([
           {
@@ -117,10 +129,19 @@ describe("searchGitHubIssues", () => {
     });
 
     const searchUrl = new URL(fetchMock.mock.calls[0][0] as string);
+    const responsivenessRequest = JSON.parse(
+      fetchMock.mock.calls[6][1]?.body as string,
+    ) as { query: string };
     expect(searchUrl.searchParams.get("q")).toBe(
       'is:issue is:open archived:false language:TypeScript label:"good first issue" linked:pr',
     );
     expect(searchUrl.searchParams.get("page")).toBe("1");
+    expect(responsivenessRequest.query).toContain(
+      "issues(first: 20, orderBy: { field: CREATED_AT, direction: DESC }",
+    );
+    expect(responsivenessRequest.query).toContain(
+      "pullRequests(first: 20, orderBy: { field: CREATED_AT, direction: DESC }",
+    );
     expect(result.page).toBe(1);
     expect(result.issues[0]).toMatchObject({
       repo: "acme/widgets",
@@ -424,6 +445,7 @@ describe("searchGitHubIssues", () => {
           archived: false,
         }),
       )
+      .mockResolvedValueOnce(responsivenessResponse())
       .mockResolvedValueOnce(jsonResponse([{ body: "I'm working on it" }]))
       .mockResolvedValueOnce(jsonResponse([]));
 
@@ -520,6 +542,7 @@ describe("searchGitHubIssues", () => {
     fetchMock
       .mockResolvedValueOnce(failure)
       .mockResolvedValueOnce(new Response("unavailable", { status: 503 }))
+      .mockResolvedValueOnce(new Response("unavailable", { status: 503 }))
       .mockResolvedValueOnce(new Response("unavailable", { status: 503 }));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -575,6 +598,7 @@ describe("searchGitHubIssues", () => {
           archived: false,
         }),
       )
+      .mockResolvedValueOnce(responsivenessResponse())
       .mockResolvedValueOnce(jsonResponse([{ body: "This was fixed in #99" }]))
       .mockResolvedValueOnce(jsonResponse([{ body: "Thanks for reporting this" }]))
       .mockResolvedValueOnce(jsonResponse([]))
