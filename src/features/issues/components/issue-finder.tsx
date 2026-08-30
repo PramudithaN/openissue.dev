@@ -1,6 +1,13 @@
 "use client";
 
-import { FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
+import {
+  type ReactNode,
+  type SubmitEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Image from "next/image";
 import { Bookmark, Mail, Search, Sparkles, Trash2 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -55,7 +62,12 @@ import {
 } from "@/features/issues/data/search-options";
 import { compactNumber } from "@/features/issues/lib/format";
 import { mergeRankedIssues, rankIssues } from "@/features/issues/lib/ranking";
-import type { SearchResponse, Issue } from "@/features/issues/types/search";
+import type {
+  EnrichmentAvailability,
+  SearchEnrichment,
+  SearchResponse,
+  Issue,
+} from "@/features/issues/types/search";
 import { authClient } from "@/lib/auth-client";
 import {
   getOpportunities,
@@ -63,6 +75,97 @@ import {
 } from "@/features/issues/lib/opportunity-cloud";
 import { getRecommendations } from "@/features/issues/lib/recommendation-cloud";
 import type { RecommendationResponse } from "@/features/issues/types/recommendation";
+
+type SearchFilters = {
+  tech: string;
+  label: string;
+  sort: string;
+  linkedPr: string;
+  hacktoberfest: string;
+};
+
+const DEFAULT_SEARCH_FILTERS: SearchFilters = {
+  tech: "Java",
+  label: "help-wanted",
+  sort: "updated",
+  linkedPr: "any",
+  hacktoberfest: "any",
+};
+
+function getSupportedValue(
+  value: string | null,
+  options: ReadonlyArray<{ value: string }>,
+  fallback: string,
+) {
+  return options.find((option) => option.value === value)?.value ?? fallback;
+}
+
+function getSearchFilters(search: string): SearchFilters | null {
+  const params = new URLSearchParams(search);
+  const tech = params.get("tech")?.trim();
+
+  if (!tech) return null;
+
+  return {
+    tech,
+    label: getSupportedValue(params.get("label"), LABEL_OPTIONS, "help-wanted"),
+    sort: getSupportedValue(params.get("sort"), SORT_OPTIONS, "updated"),
+    linkedPr: getSupportedValue(params.get("linkedPr"), LINKED_PR_OPTIONS, "any"),
+    hacktoberfest: getSupportedValue(
+      params.get("hacktoberfest"),
+      HACKTOBERFEST_OPTIONS,
+      "any",
+    ),
+  };
+}
+
+function createSearchParams(filters: SearchFilters, page?: number) {
+  return new URLSearchParams({
+    tech: filters.tech.trim(),
+    label: filters.label,
+    sort: filters.sort,
+    linkedPr: filters.linkedPr,
+    hacktoberfest: filters.hacktoberfest,
+    ...(page ? { page: String(page) } : {}),
+  });
+}
+
+function leastAvailable(
+  first: EnrichmentAvailability,
+  second: EnrichmentAvailability,
+) {
+  return ENRICHMENT_PRIORITY[first] >= ENRICHMENT_PRIORITY[second]
+    ? first
+    : second;
+}
+
+const ENRICHMENT_PRIORITY: Record<EnrichmentAvailability, number> = {
+  complete: 0,
+  partial: 1,
+  unavailable: 2,
+};
+
+function mergeEnrichment(
+  current?: SearchEnrichment,
+  next?: SearchEnrichment,
+): SearchEnrichment | undefined {
+  if (!current || !next) return current ?? next;
+
+  return {
+    repositoryMetadata: leastAvailable(
+      current.repositoryMetadata,
+      next.repositoryMetadata,
+    ),
+    discussionAnalysis: leastAvailable(
+      current.discussionAnalysis,
+      next.discussionAnalysis,
+    ),
+    linkedPullRequests: leastAvailable(
+      current.linkedPullRequests,
+      next.linkedPullRequests,
+    ),
+  };
+}
 
 function DigestControls({
   linkedEmail,
@@ -158,7 +261,7 @@ function SearchSummary({
       {data ? (
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-xl font-semibold">Ranked issues</h2>
+            <h2 className="text-xl font-semibold">Opportunities</h2>
             <p className="text-sm text-muted-foreground">{data.query}</p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -181,6 +284,31 @@ function SearchSummary({
         </Card>
       )}
     </>
+  );
+}
+
+function EnrichmentNotice({ data }: Readonly<{ data: SearchResponse | null }>) {
+  if (!data?.enrichment) return null;
+
+  const unavailableSignals = [
+    ["repository metadata", data.enrichment.repositoryMetadata],
+    ["discussion analysis", data.enrichment.discussionAnalysis],
+    ["linked pull requests", data.enrichment.linkedPullRequests],
+  ].filter(([, availability]) => availability !== "complete");
+
+  if (unavailableSignals.length === 0) return null;
+
+  return (
+    <Card className="border-amber-500/30 bg-amber-500/5">
+      <CardHeader>
+        <CardTitle className="text-base">Some ranking details are unavailable</CardTitle>
+        <CardDescription>
+          Results remain usable, but {unavailableSignals.map(([name, availability]) =>
+            `${name} is ${availability}`,
+          ).join("; ")}. Scores use the signals GitHub returned.
+        </CardDescription>
+      </CardHeader>
+    </Card>
   );
 }
 
@@ -213,10 +341,11 @@ function RankedIssuesPanel({
     <div
       id="ranked-issues-panel"
       role="tabpanel"
-      aria-label="Ranked issues"
+      aria-label="Opportunities"
       className="space-y-4"
     >
       <SearchSummary error={error} data={data} />
+      <EnrichmentNotice data={data} />
       {isLoading ? <LoadingResults /> : null}
       {!isLoading && data && issues.length === 0 ? (
         <Card>
@@ -438,7 +567,7 @@ function IssueContentTabs({
           size="sm"
           onClick={() => onTabChange("results")}
         >
-          Ranked issues
+          Opportunities
         </Button>
         {authenticated ? (
           <Button
@@ -476,11 +605,13 @@ function IssueContentTabs({
 
 export function IssueFinder() {
   const { data: session, isPending: isSessionPending } = authClient.useSession();
-  const [tech, setTech] = useState("Java");
-  const [label, setLabel] = useState("help-wanted");
-  const [sort, setSort] = useState("updated");
-  const [linkedPr, setLinkedPr] = useState("any");
-  const [hacktoberfest, setHacktoberfest] = useState("any");
+  const [tech, setTech] = useState(DEFAULT_SEARCH_FILTERS.tech);
+  const [label, setLabel] = useState(DEFAULT_SEARCH_FILTERS.label);
+  const [sort, setSort] = useState(DEFAULT_SEARCH_FILTERS.sort);
+  const [linkedPr, setLinkedPr] = useState(DEFAULT_SEARCH_FILTERS.linkedPr);
+  const [hacktoberfest, setHacktoberfest] = useState(
+    DEFAULT_SEARCH_FILTERS.hacktoberfest,
+  );
   const [data, setData] = useState<SearchResponse | null>(null);
   const [issues, setIssues] = useState<Issue[]>([]);
   const [page, setPage] = useState(1);
@@ -488,6 +619,7 @@ export function IssueFinder() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(false);
+  const searchRequestId = useRef(0);
 
   const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([]);
   const [savedSearchName, setSavedSearchName] = useState("");
@@ -509,25 +641,36 @@ export function IssueFinder() {
   }, []);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const linkedSearch = {
-      tech: params.get("tech")?.trim() ?? "",
-      label: params.get("label") ?? "help-wanted",
-      sort: params.get("sort") ?? "updated",
-      linkedPr: params.get("linkedPr") ?? "any",
-      hacktoberfest: params.get("hacktoberfest") ?? "any",
-    };
+    function restoreSearch() {
+      const linkedSearch = getSearchFilters(window.location.search);
 
-    if (!linkedSearch.tech) return;
+      if (!linkedSearch) {
+        searchRequestId.current += 1;
+        setTech(DEFAULT_SEARCH_FILTERS.tech);
+        setLabel(DEFAULT_SEARCH_FILTERS.label);
+        setSort(DEFAULT_SEARCH_FILTERS.sort);
+        setLinkedPr(DEFAULT_SEARCH_FILTERS.linkedPr);
+        setHacktoberfest(DEFAULT_SEARCH_FILTERS.hacktoberfest);
+        setData(null);
+        setIssues([]);
+        setError(null);
+        setPage(1);
+        setIsLoading(false);
+        return;
+      }
 
-    // Hydration must use the server defaults before applying URL filters.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setTech(linkedSearch.tech);
-    setLabel(linkedSearch.label);
-    setSort(linkedSearch.sort);
-    setLinkedPr(linkedSearch.linkedPr);
-    setHacktoberfest(linkedSearch.hacktoberfest);
-    void searchIssues(undefined, linkedSearch);
+      setTech(linkedSearch.tech);
+      setLabel(linkedSearch.label);
+      setSort(linkedSearch.sort);
+      setLinkedPr(linkedSearch.linkedPr);
+      setHacktoberfest(linkedSearch.hacktoberfest);
+      void searchIssues(undefined, linkedSearch, false);
+    }
+
+    restoreSearch();
+    window.addEventListener("popstate", restoreSearch);
+
+    return () => window.removeEventListener("popstate", restoreSearch);
     // The URL is an initial navigation input, not reactive component state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -799,14 +942,9 @@ export function IssueFinder() {
   }
 
   async function searchIssues(
-    event?: FormEvent<HTMLFormElement>,
-    searchOverride?: {
-      tech: string;
-      label: string;
-      sort: string;
-      linkedPr: string;
-      hacktoberfest: string;
-    },
+    event?: SubmitEvent<HTMLFormElement>,
+    searchOverride?: SearchFilters,
+    updateHistory = true,
   ) {
     event?.preventDefault();
 
@@ -828,13 +966,14 @@ export function IssueFinder() {
     setIssues([]);
     setPage(1);
 
-    const params = new URLSearchParams({
-      tech: searchTech.trim(),
+    const params = createSearchParams({
+      tech: searchTech,
       label: searchLabel,
       sort: searchSort,
       linkedPr: searchLinkedPr,
       hacktoberfest: searchHacktoberfest,
     });
+    const requestId = ++searchRequestId.current;
 
     try {
       const response = await fetch(`/api/search?${params.toString()}`);
@@ -844,19 +983,33 @@ export function IssueFinder() {
         throw new Error(payload.error ?? "Search failed.");
       }
 
+      if (requestId !== searchRequestId.current) return;
+
       setData(payload);
       setIssues(rankIssues(payload.issues, searchSort));
+      if (updateHistory) {
+        const nextUrl = `${window.location.pathname}?${params.toString()}`;
+        const currentUrl = `${window.location.pathname}${window.location.search}`;
+
+        if (nextUrl !== currentUrl) {
+          window.history.pushState(null, "", nextUrl);
+        }
+      }
     } catch (searchError) {
+      if (requestId !== searchRequestId.current) return;
+
       setError(
         searchError instanceof Error
           ? searchError.message
           : "Search failed. Try another technology or label.",
       );
     } finally {
-      setIsLoading(false);
-      setTimeout(() => {
-        setCooldown(false);
-      }, 3000);
+      if (requestId === searchRequestId.current) {
+        setIsLoading(false);
+        setTimeout(() => {
+          setCooldown(false);
+        }, 3000);
+      }
     }
   }
 
@@ -867,14 +1020,10 @@ export function IssueFinder() {
     setError(null);
 
     const nextPage = page + 1;
-    const params = new URLSearchParams({
-      tech: tech.trim(),
-      label,
-      sort,
-      linkedPr,
-      hacktoberfest,
-      page: String(nextPage),
-    });
+    const params = createSearchParams(
+      { tech, label, sort, linkedPr, hacktoberfest },
+      nextPage,
+    );
 
     try {
       const response = await fetch(`/api/search?${params.toString()}`);
@@ -886,7 +1035,10 @@ export function IssueFinder() {
 
       setIssues((prev) => mergeRankedIssues(prev, payload.issues, sort));
       setPage(nextPage);
-      setData(payload);
+      setData((current) => ({
+        ...payload,
+        enrichment: mergeEnrichment(current?.enrichment, payload.enrichment),
+      }));
     } catch (searchError) {
       setError(
         searchError instanceof Error
@@ -896,6 +1048,11 @@ export function IssueFinder() {
     } finally {
       setIsLoadingMore(false);
     }
+  }
+
+  let tokenStatus = "unknown";
+  if (data) {
+    tokenStatus = data.tokenConfigured ? "configured" : "not set";
   }
 
   return (
@@ -1060,7 +1217,7 @@ export function IssueFinder() {
               />
               <Metric
                 label="GitHub token"
-                value={data?.tokenConfigured ? "configured" : "not set"}
+                value={tokenStatus}
               />
             </CardContent>
           </Card>

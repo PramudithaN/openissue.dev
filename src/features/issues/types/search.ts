@@ -11,6 +11,20 @@ export type RepositoryHealth = {
   signals: string[];
 };
 
+export type EnrichmentAvailability = "complete" | "partial" | "unavailable";
+
+export type IssueEnrichment = {
+  repositoryMetadata: boolean;
+  discussionAnalysis: boolean;
+  linkedPullRequests: boolean;
+};
+
+export type SearchEnrichment = {
+  repositoryMetadata: EnrichmentAvailability;
+  discussionAnalysis: EnrichmentAvailability;
+  linkedPullRequests: EnrichmentAvailability;
+};
+
 export type Issue = {
   id: string;
   title: string;
@@ -29,6 +43,7 @@ export type Issue = {
   qualityScore: number;
   trendingScore?: number;
   repositoryHealth: RepositoryHealth;
+  enrichment?: IssueEnrichment;
   helpStatus?: IssueStatus;
 };
 
@@ -40,6 +55,7 @@ export type SearchResponse = {
   tokenConfigured: boolean;
   issues: Issue[];
   page: number;
+  enrichment?: SearchEnrichment;
   error?: string;
 };
 

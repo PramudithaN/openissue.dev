@@ -147,6 +147,7 @@ function jsonResponse(payload: SearchResponse, ok = true) {
 }
 
 beforeEach(() => {
+  window.history.replaceState(null, "", "/");
   getSavedSearches.mockReset().mockReturnValue([]);
   addSavedSearch.mockReset();
   deleteSavedSearch.mockReset();
@@ -183,7 +184,7 @@ describe("IssueFinder", () => {
     render(<IssueFinder />);
 
     expect(
-      screen.getByRole("tab", { name: "Ranked issues" }).getAttribute(
+      screen.getByRole("tab", { name: "Opportunities" }).getAttribute(
         "aria-selected",
       ),
     ).toBe("true");
@@ -531,7 +532,7 @@ describe("IssueFinder", () => {
     render(<IssueFinder />);
     fireEvent.submit(screen.getByRole("button", { name: "Search" }).closest("form")!);
 
-    expect(await screen.findByRole("heading", { name: "Ranked issues" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Opportunities" })).toBeTruthy();
     expect(screen.getByText("Issue 24")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Load More" }));
     expect(await screen.findByText("Issue 25")).toBeTruthy();
@@ -645,7 +646,7 @@ describe("IssueFinder", () => {
 
     render(<IssueFinder />);
     fireEvent.click(screen.getByRole("button", { name: "Run" }));
-    expect(await screen.findByText("Ranked issues")).toBeTruthy();
+    expect(await screen.findByText("Opportunities")).toBeTruthy();
     expect(fetchMock.mock.calls[0][0]).toContain("tech=Rust");
     fireEvent.click(screen.getByRole("button", { name: "Load More" }));
     expect(await screen.findByText("Pagination failed")).toBeTruthy();
@@ -658,8 +659,254 @@ describe("IssueFinder", () => {
       .mockRejectedValueOnce("offline");
     render(<IssueFinder />);
     fireEvent.submit(screen.getByRole("button", { name: "Search" }).closest("form")!);
-    await screen.findByText("Ranked issues");
+    await screen.findByText("Opportunities");
     fireEvent.click(screen.getByRole("button", { name: "Load More" }));
     expect(await screen.findByText("Failed to load more issues.")).toBeTruthy();
+  });
+
+  it("shows an unknown token status until a successful search reports it", async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(response({ tokenConfigured: true })) as any)
+      .mockResolvedValueOnce(
+        jsonResponse(response({ error: "Search failed" }), false) as any,
+      );
+
+    render(<IssueFinder />);
+    expect(screen.getByText("unknown")).toBeTruthy();
+
+    const form = screen.getByRole("button", { name: "Search" }).closest("form")!;
+    fireEvent.submit(form);
+    expect(await screen.findByText("configured")).toBeTruthy();
+
+    fireEvent.submit(form);
+    expect((await screen.findAllByText("Search failed")).length).toBeGreaterThan(0);
+    expect(screen.getByText("configured")).toBeTruthy();
+  });
+
+  it("writes successful searches to the URL without adding pagination entries", async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(response()) as any)
+      .mockResolvedValueOnce(
+        jsonResponse(response({ issues: [issue(25)], page: 2, candidateCount: 25 })) as any,
+      );
+    const pushState = vi.spyOn(window.history, "pushState");
+
+    render(<IssueFinder />);
+    fireEvent.change(screen.getByLabelText("Technology"), {
+      target: { value: "Rust" },
+    });
+    fireEvent.submit(screen.getByRole("button", { name: "Search" }).closest("form")!);
+
+    await screen.findByRole("heading", { name: "Opportunities" });
+    expect(window.location.search).toContain("tech=Rust");
+    expect(pushState).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Load More" }));
+    await screen.findByText("Issue 25");
+    expect(pushState).toHaveBeenCalledTimes(1);
+  });
+
+  it("restores validated filters during browser navigation", async () => {
+    const fetchMock = vi.mocked(fetch).mockResolvedValue(
+      jsonResponse(response()) as any,
+    );
+    window.history.replaceState(
+      null,
+      "",
+      "/?tech=Rust&label=unknown&sort=unknown&linkedPr=unknown&hacktoberfest=unknown",
+    );
+
+    render(<IssueFinder />);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+    expect(String(fetchMock.mock.calls[0][0])).toContain("tech=Rust");
+    expect(String(fetchMock.mock.calls[0][0])).toContain("label=help-wanted");
+    expect(String(fetchMock.mock.calls[0][0])).toContain("sort=updated");
+
+    window.history.pushState(null, "", "/");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    expect(await screen.findByText("Ready when you are")).toBeTruthy();
+    expect((screen.getByLabelText("Technology") as HTMLInputElement).value).toBe("Java");
+  });
+
+  it("ignores a stale search after navigation clears the URL", async () => {
+    let resolveSearch!: (value: ReturnType<typeof jsonResponse>) => void;
+    vi.mocked(fetch).mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveSearch = resolve;
+      }) as any,
+    );
+    window.history.replaceState(null, "", "/?tech=Rust");
+
+    render(<IssueFinder />);
+    await waitFor(() => expect(fetch).toHaveBeenCalledOnce());
+
+    window.history.pushState(null, "", "/");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    expect(await screen.findByText("Ready when you are")).toBeTruthy();
+
+    resolveSearch(jsonResponse(response()));
+    await waitFor(() => expect(screen.queryByText("Issue 1")).toBeNull());
+    expect(screen.getByText("Ready when you are")).toBeTruthy();
+  });
+
+  it("ignores a stale search failure after a newer history search succeeds", async () => {
+    let rejectFirstSearch!: (reason: Error) => void;
+    vi.mocked(fetch)
+      .mockReturnValueOnce(
+        new Promise((_, reject) => {
+          rejectFirstSearch = reject;
+        }) as any,
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(response({
+          query: "is:issue language:Go",
+          issues: [issue(50)],
+        })) as any,
+      );
+    window.history.replaceState(null, "", "/?tech=Rust");
+
+    render(<IssueFinder />);
+    await waitFor(() => expect(fetch).toHaveBeenCalledOnce());
+
+    window.history.pushState(null, "", "/?tech=Go");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    expect(await screen.findByText("Issue 50")).toBeTruthy();
+
+    rejectFirstSearch(new Error("Stale failure"));
+    await waitFor(() => expect(screen.queryByText("Stale failure")).toBeNull());
+    expect(screen.getByText("Issue 50")).toBeTruthy();
+  });
+
+  it("warns when optional GitHub enrichment is incomplete", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      jsonResponse(response({
+        enrichment: {
+          repositoryMetadata: "partial",
+          discussionAnalysis: "unavailable",
+          linkedPullRequests: "complete",
+        },
+      })) as any,
+    );
+
+    render(<IssueFinder />);
+    fireEvent.submit(screen.getByRole("button", { name: "Search" }).closest("form")!);
+
+    expect(
+      await screen.findByText("Some ranking details are unavailable"),
+    ).toBeTruthy();
+    expect(screen.getByText(/repository metadata is partial/)).toBeTruthy();
+    expect(screen.getByText(/discussion analysis is unavailable/)).toBeTruthy();
+  });
+
+  it("retains incomplete enrichment warnings across loaded pages", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        jsonResponse(response({
+          enrichment: {
+            repositoryMetadata: "partial",
+            discussionAnalysis: "complete",
+            linkedPullRequests: "complete",
+          },
+        })) as any,
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(response({
+          issues: [issue(25)],
+          page: 2,
+          enrichment: {
+            repositoryMetadata: "complete",
+            discussionAnalysis: "complete",
+            linkedPullRequests: "complete",
+          },
+        })) as any,
+      );
+
+    render(<IssueFinder />);
+    fireEvent.submit(screen.getByRole("button", { name: "Search" }).closest("form")!);
+    expect(
+      await screen.findByText(/repository metadata is partial/),
+    ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Load More" }));
+    await screen.findByText("Issue 25");
+    expect(screen.getByText(/repository metadata is partial/)).toBeTruthy();
+  });
+
+  it("keeps the least available enrichment status from a later page", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        jsonResponse(response({
+          enrichment: {
+            repositoryMetadata: "complete",
+            discussionAnalysis: "complete",
+            linkedPullRequests: "complete",
+          },
+        })) as any,
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(response({
+          issues: [issue(25)],
+          page: 2,
+          enrichment: {
+            repositoryMetadata: "unavailable",
+            discussionAnalysis: "partial",
+            linkedPullRequests: "complete",
+          },
+        })) as any,
+      );
+
+    render(<IssueFinder />);
+    fireEvent.submit(screen.getByRole("button", { name: "Search" }).closest("form")!);
+    await screen.findByRole("heading", { name: "Opportunities" });
+    expect(
+      screen.queryByText("Some ranking details are unavailable"),
+    ).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Load More" }));
+    expect(
+      await screen.findByText(/repository metadata is unavailable/),
+    ).toBeTruthy();
+    expect(screen.getByText(/discussion analysis is partial/)).toBeTruthy();
+  });
+
+  it("preserves enrichment when only one loaded page reports it", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(jsonResponse(response()) as any)
+      .mockResolvedValueOnce(
+        jsonResponse(response({
+          issues: Array.from({ length: 24 }, (_, index) => issue(index + 25)),
+          page: 2,
+          candidateCount: 50,
+          enrichment: {
+            repositoryMetadata: "partial",
+            discussionAnalysis: "complete",
+            linkedPullRequests: "complete",
+          },
+        })) as any,
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(response({
+          issues: [issue(49)],
+          page: 3,
+          candidateCount: 50,
+          enrichment: undefined,
+        })) as any,
+      );
+
+    render(<IssueFinder />);
+    fireEvent.submit(screen.getByRole("button", { name: "Search" }).closest("form")!);
+    await screen.findByRole("heading", { name: "Opportunities" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Load More" }));
+    expect(
+      await screen.findByText(/repository metadata is partial/),
+    ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Load More" }));
+    await screen.findByText("Issue 49");
+    expect(screen.getByText(/repository metadata is partial/)).toBeTruthy();
   });
 });
