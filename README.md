@@ -8,6 +8,7 @@
 - Filters by contributor-friendly label, linked pull requests, and Hacktoberfest readiness
 - Scores repository health from maintenance and contributor-activity signals
 - Sorts and ranks results using issue quality and repository health
+- Surfaces trending opportunities by recent activity, discussion, stars, and repository health
 - Supports reusable saved searches without requiring an account
 - Adds GitHub sign-in for cloud-backed saved searches that survive cleared browser storage
 - Shows signed-in users their public GitHub issue and pull-request history

@@ -74,9 +74,15 @@ Search filters currently include:
 
 - Technology or ecosystem
 - Contributor-friendly label
-- Recently updated, most commented, or newest sorting
+- Trending, recently updated, most commented, or newest sorting
 - Any, present, or absent linked pull request
 - All issues or Hacktoberfest-ready issues
+
+Trending searches reuse the same technology and contributor-label filters, but
+limit candidates to issues updated in the last 30 days. Results are ranked with
+an explainable activity score combining recency, discussion volume, repository
+stars, and repository health. The normal contributor-quality score remains
+visible so users can balance momentum with issue suitability.
 
 ## Authentication
 

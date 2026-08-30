@@ -374,6 +374,39 @@ describe("searchGitHubIssues", () => {
     expect(result.totalCount).toBe(2);
   });
 
+  it("ranks recent active issues in trending mode", async () => {
+    const discussedIssue = githubIssue({
+      html_url: "https://github.com/acme/widgets/issues/1",
+      comments: 16,
+      updated_at: "2026-06-26T11:00:00.000Z",
+    });
+    const quietIssue = githubIssue({
+      html_url: "https://github.com/acme/widgets/issues/2",
+      comments: 0,
+      updated_at: "2026-06-25T11:00:00.000Z",
+    });
+    const fetchMock = vi.fn();
+    searchPageResponses([quietIssue, discussedIssue], 2).forEach((response) => {
+      fetchMock.mockResolvedValueOnce(response);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await searchGitHubIssues({
+      tech: "Java",
+      label: "help-wanted",
+      sort: "trending",
+      linkedPr: "any",
+    });
+
+    const searchUrl = new URL(fetchMock.mock.calls[0][0] as string);
+    expect(searchUrl.searchParams.get("sort")).toBe("updated");
+    expect(searchUrl.searchParams.get("q")).toContain("updated:>=2026-05-27");
+    expect(result.issues[0].id).toBe(discussedIssue.html_url);
+    expect(result.issues[0].trendingScore).toBeGreaterThan(
+      result.issues[1].trendingScore ?? 0,
+    );
+  });
+
   it("uses repository and comment enrichment when a GitHub token is configured", async () => {
     process.env.GITHUB_TOKEN = "test-token";
     const fetchMock = vi

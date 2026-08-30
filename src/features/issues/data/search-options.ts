@@ -62,6 +62,7 @@ export const TOPIC_ALIASES: Record<string, { topic: string; language?: string }>
 
 export const SORT_OPTIONS = [
   { value: "updated", label: "Recently updated" },
+  { value: "trending", label: "Trending" },
   { value: "comments", label: "Most comments" },
   { value: "created", label: "Newest" },
 ];

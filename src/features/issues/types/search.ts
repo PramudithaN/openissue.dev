@@ -27,6 +27,7 @@ export type Issue = {
   hacktoberfest: boolean;
   hacktoberfestSource: "repo-topic" | "issue-label" | null;
   qualityScore: number;
+  trendingScore?: number;
   repositoryHealth: RepositoryHealth;
   helpStatus?: IssueStatus;
 };
