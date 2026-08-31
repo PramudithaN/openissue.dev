@@ -8,23 +8,24 @@ export function HiddenRepositories() {
   const [repos, setRepos] = useState<HiddenRepo[]>([]);
   const [loading, setLoading] = useState(true);
 
-  async function fetchRepos() {
-    setLoading(true);
-    try {
-      const response = await fetch('/api/hidden-repositories');
-      if (response.ok) {
-        const data = await response.json();
-        setRepos(data.repositories);
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  }
-
   useEffect(() => {
-    fetchRepos();
+    let cancelled = false;
+
+    fetch('/api/hidden-repositories')
+      .then(async (response) => {
+        if (response.ok) {
+          const data = await response.json();
+          if (!cancelled) setRepos(data.repositories);
+        }
+      })
+      .catch((error) => console.error(error))
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function handleUnhide(repoName: string) {

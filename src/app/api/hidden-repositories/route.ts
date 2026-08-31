@@ -22,7 +22,7 @@ export async function GET(request: Request) {
       .where(eq(hiddenRepository.userId, session.user.id));
       
     return Response.json({ repositories: repos });
-  } catch (error) {
+  } catch {
     return Response.json({ error: 'Failed to fetch hidden repositories.' }, { status: 500 });
   }
 }
@@ -53,7 +53,7 @@ export async function DELETE(request: Request) {
       );
       
     return Response.json({ success: true });
-  } catch (error) {
+  } catch {
     return Response.json({ error: 'Failed to unhide repository.' }, { status: 500 });
   }
 }
